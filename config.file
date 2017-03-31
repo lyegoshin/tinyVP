@@ -1,0 +1,32 @@
+.vm
+    id = 1
+    irqpolling = 1
+    elf = pic32mz-guest1/uart.elf
+    .mmap
+	code = 0x1fc08000 0x8000 rxds 0x1fc08000
+	ram = 0     0x10000 rw 0x1000
+    .
+    device = ic
+    device = console
+    device = ports
+    device = syscontroller
+    device = oscillator
+.
+
+.vm
+    id = 2
+#    dma = 1
+#    irqpolling = 1
+    elf = pic32mz-guest2/uart.elf
+    entry = 0x9fc00020
+    .mmap
+	code = 0x1fc08000 0x8000 rxds 0x1fc08000
+	ram = 0     0x10000 rw 0x1000
+    .
+    device = ic
+    device = console
+    device = ports
+    device = syscontroller
+    device = oscillator
+.
+

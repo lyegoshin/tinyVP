@@ -1,0 +1,151 @@
+    Configuration file parameters and rules
+=================================================
+
+General Syntax:
+
+    .keyword            - start of syntax block
+    .                   - end of previous block
+    key = value(s)      - attach value(s) to key
+    regs = \n
+    registers = \n      - start of special register block ending by '.'
+    (square brackets means "optional")
+
+    addresses, sizes and alignments can be decimal or hexidecimal
+
+    #                   - comment start, up to end of file
+
+-----------------------------------------------------------------------
+Register and memory blocks flag letters:
+
+    r                   - Read
+    w                   - Write
+    x                   - Executable
+    i                   - write ignored
+    s                   - shared between VMs
+    d                   - is not counted against DMA requirements
+    e                   - emulated
+
+-----------------------------------------------------------------------
+Semantics:
+
+.vm                                     - start a new VM description
+
+id = number                             - VM id. Required
+
+regs = vaddress size flags [physaddr]
+registers = ...                         - device register block,
+					  with size at virtual address.
+					  if physaddr is given then it
+					  can be different from virtual
+       vaddress size flags [physaddr]   - One of lines in special regs block
+					  (after ".regs" line)
+
+entry = address                         - Guest entry point virtual address
+					  Required
+
+elf = filename                          - Guest ELF binary file location.
+					  File is used to extract code/data
+					  sections addresses, sizes and
+					  alignments (alignments are not used)
+					  It is also used for building a final
+					  merge script to create a single
+					  downloadable file
+
+file = filename                         - an alternative to "elf", if map values
+					  can't be extracted from guest binary
+
+.mmap                                   - start memory map description block
+					  Second block in VM is appended to
+					  the first one
+
+  code = vaddress size [flags [physaddr]] - VM guest code section, same rule
+					    as "registers". Default flags are rx
+
+  data = vaddress size [flags [physaddr]] - VM guest data section, same rule
+					    as "registers". Default flags are rw
+
+  rom = vaddress size flags ALIGNMENT     - VM guest code section for automatic
+					    allocation by configurator.
+					    See platform description details.
+					    The last statement in VM description
+					    replaces the previous
+
+  ram = vaddress size flags ALIGNMENT     - VM guest data section for automatic
+					    allocation by configurator.
+					    See platform description details.
+					    The last statement in VM description
+					    replaces the previous
+
+irq = irq1 irq2 ... irqN                - list of IRQs requested by VM
+
+irqpolling = 1                          - Flag which indicates that VM has no
+					  interrupt handlers
+
+dma = 1                                 - Flag which indicates that VM uses DMA
+					  Any piece of memory not indicated by
+					  flag 'd' must have vaddress = physaddress
+
+device = devicename                     - include "devicename" description from
+					  library of devices "device.lib"
+
+.device                                 - start a single device block
+
+  name = devicename                       - inside deviceblock - name of device
+
+  dma = 1                                 - inside deviceblock - DMA device
+
+  irq = irq1 irq2 ... irqN                - inside deviceblock - list of IRQs
+					    used by device
+
+  share = 1                               - device can be shared among VMs
+
+  emulator = name                         - use emulator "name" as a device
+					    emulator. Requires emulator in tinyVP
+					    Ex: console, ic_emulator
+
+-----------------------------------------------------------------------
+
+    Platform file description
+==============================================
+
+File should have a couple of key = value(s) lines:
+
+rom = start-physaddress end-physaddress
+ram = start-physaddress end-physaddress
+
+    Both lines are used for automatic allocation of code and data
+    for guests. Guest code values can be reliably taken from .elf file and
+    start-physaddress is usually equal to a board flash address.
+    Data _size_ can't be extracted reliably from .ELF and "ram" line in VM
+    description in configuration file is needed to use an automatic allocation.
+    Allocation is done in sequence of VM occurance in configuration file,
+    not in VMid sequence. It may be significant in case of DMA-capable guest
+    because DMA requires matching guest virtual address to board physaddress.
+
+    For this reason the build process is split in two - map values extraction
+    from .ELF files and then the configuration and build. Between both steps
+    it is possible to put an appropriate "ram" line directly in .mmap of VM
+    basing on extracted values after "elf" line, and replace map file value.
+    See an example of configuration file.
+
+eret_page = 0x9ffff000
+
+    This is a virtual address in VM7 of a special page to clear Guest.LLbit
+    during guest reschedule. It is needed because of Config5.LLB is not
+    implemented in M5150 (MIPS core of PIC32MZEF)
+
+vzcode  =   0x9D000000
+
+    Start address of tinyVP code
+
+vzentry =   0x9D001000
+
+    Entry point of tinyVP after boot
+
+vzdata =    0x80078000
+
+    Start address of tinyVP data section in RAM
+
+vzstacktop  =   0x80080000
+
+    End address of tinyVP data section in RAM - stack top

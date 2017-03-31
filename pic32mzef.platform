@@ -1,0 +1,7 @@
+rom = 0x1d010000 0x1D200000
+ram = 0          0x78000
+eret_page = 0x9ffff000
+vzcode  =   0x9D000000
+vzentry =   0x9D001000
+vzdata =    0x80078000
+vzstacktop  =   0x80080000

@@ -1,0 +1,44 @@
+	    PIC32MZEF-BASED BOARD DEVICES DESCRIPTION.
+
+
+    Value in brackets points to an appropriate section of
+    "PIC32MZ Embedded Connectivity with Floating Point Unit (EF) Family" of
+    Microchip document.
+
+    "emulator" means a MIPS-VZ device emulator driver because a direct access
+    can't be allowed. Device can be shared between guests due to emulation.
+
+    "access" means a read or read-write access.
+
+    "read/write-ignore" means an exactly - read is allowed, write is skipped.
+
+    "shared" is a device which can be shared among many guests w/out emulator.
+
+
+console     UART4 emulator                  (22.0)      0x1f822600  0x100
+
+uart1       UART1 access                    (22.0)      0x1f822000  0x100
+
+ic          Interrupt Controller emulator   (7.2-7.3)   0x1f810000  0x1000
+
+ports       I/O ports access, aggregate     (12.0)      0x1f801400  0x300
+							0x1f860000  0x1000
+  port-A .. port-K      are the specific ports access
+  PPS-in .. PPS-out     are Peripheral Pin Select registers access
+
+devcfg      Device Config registers access  (34)        0x1fc0ffc0  0x30
+	    *DEVCFG*, *DEVCP*, *DEVSIGN*
+	    It is a part of boot ROM and can conflict if guest VM has
+	    an explicit access to boot ROM via regular mmap access
+	    Access is in "read/write-ignore" mode, shared
+
+syscontroller   System controller access    (34.3,34-7-10)
+							0x1f800000  0x100
+	    CFGCON, CFGEBIA/B, CFGPG, DEVID, SYSKEY, PMD*
+	    Access is in "read/write-ignore" mode, shared
+
+oscillator  Board oscillators controll access (8.2)     0x1f801200  0x200
+	    OSCCON, OSCTUN, SPLLCON, REFOxCON, REFOxTRIM,
+	    PBxDIV, SLEWCON, CLKSTAT
+	    Access is in "read/write-ignore" mode, shared
+

@@ -1,0 +1,120 @@
+	    tinyVP Hypervizor
+
+	       3/28/17
+
+	    by Leonid Yegoshin
+
+tinyVP is a truly hardware assisted hypervizor on MIPS embedded platforms.
+It is assumed to be highly secure and reliable due to compact design with
+a smallest possible memory footprint and absence of dynamic objects.
+ARINC-653 is in mind during design.
+
+It targets the IoT/car market sector with resource limited devices, development
+platform is Microchip ChipKIT Wi-FIRE board on PIC32MZEF (M5150) with
+main memory < 512KB. Configuration is static during build time.
+
+
+I. Main distinctive features of tinyVP:
+
+
+1.  Truly HW-assisted and non-paravirtualized MIPS VZ platform. No any special
+  stuff inside guest is needed and actually, it is assumed that binary which
+  runs on bare-bone board can be used as a guest OS without rebuild (some
+  device restrictions may be still needed, although it is unlikely).
+    It doesn't preclude some paravirtualization for performance and virtual
+  devices like TCP/IP switch but it is optional.
+    Some devices can be shared and emulated to provide a board model to guests.
+  The other devices are given to guests in exclusive mode.
+    Non-paravirtualized hypervizor can allow using board development software
+  (MicroChip, for exam) located in boot monitor in guest mode.
+
+2.  EIC-based but non-VZ PIC32MZEF interrupt controller is shared between
+  multiple guests. Guest's interrupt controller model is close to board's.
+    Access to IC is emulated to provide a shared use, IPL is tracked in
+  hypervisor, interrupt requests are passed to guest by hypervisor.
+
+3.  Statically configured guest virtual memory with variable page size in TLB.
+  Refill handler supports multilevel page table trees and variable page size
+  allows a very effective use of TLB array - in fact, 2-3 guests may fit 16 TLB
+  without frequent refills. However, on-demand refill is supported.
+
+4.  tinyVP hypervizor is designed to use shadow sets for guests. It can be
+  changed in future but today PIC32MZEF has 8 shadow sets and hypervisor can be
+  configured up to 7 guests.
+
+5.  No dynamic objects inside hypervisor exist so far. It increases a security
+  and reliablity by eradicating memory leaks and minimizing memory corruption
+  due to stale pointer. Only static objects and stacks are used. The only
+  semi-dynamic object is a predefined timer events list.
+    It is possible to do it because the design is concentrated around guest
+  exceptions and device interrupts and no service is provided by hypervisor
+  beyond board emulation.
+
+6. Outdated:
+  DMA: Usually, in systems without IOMMU a guest DMA should be restricted or
+  paravirtualized. However, PIC32MZEF has buffer addresses for DMA in devices
+  registers for some devices and it allows a secure and reliable guests DMA
+  without paravirtualization. USB, CAN and standalone DMA are examples of that.
+  It requires a simple emulation of guest access to device registers with
+  address register correction on fly.
+    Crypto engine has a buffer header chain in memory and can't be adopted
+  easily and may require a paravirtualization or more expensive emulation.
+  Ethernet and SQI devices have the same issue but are not used in
+  ChipKIT Wi-FIRE board.
+    However, one guest can run in address match mode (virtual address ==
+  physical address) and that DMA devices can be used by this guest, although
+  with some security risk due to possible memory corruption of other guests
+  in case of wrong DMA address setup by this guest.
+
+  New content:
+  DMA can be protected by board System Bus Access feature. Up to 2 guests
+  can be put into two DMA groups with restriction of access between them
+  and to tinyVP memory. The only requirement - guest data/stack/dynamic section
+  virtual addresses must be equal to board physaddresses.
+
+
+II. List of tinyVP components and state (as 3/28/17)
+
+  - Variable size TLB refill handler and Python-based PTE tree creator and
+    configurator                            (Done)
+
+  - Read/Write access emulator based on TLB exceptions with protections
+					    (Done)
+
+  - Base Exception handler including porting BD-slot emulation
+					    (Done)
+
+  - UART driver, log, print routines port   (Done)
+
+  - Timer handler, including event queue processor
+					    (Done)
+
+  - Generic MIPS EIC interrupt root2guest pass-through handler
+					    (Done, may need a small improvement)
+
+  - EIC PIC32MZEF Interrupt Controller access emulation driver
+					    (Done)
+
+  - VZ-specific exception handler           (Done)
+
+  - Console UART access emulation driver    (Done)
+
+  - DMA block access emulation driver       (-) DMA protection should be added
+
+  - USB access emulation driver aka DMA address corrector
+					    (-)
+
+  - Miscelaneous access emulation driver (IO ports, Oscilator, Watchdog Timer,
+    Deadman Timer, Prefetch Ctl, Board resets/configs, System bus block)
+					    (V) replaced by "write-ignore" TLB
+						feature. Still may be needed
+
+  - RT Scheduler with Shadow sets           (Done)
+
+  - FPU extensions in exceptions and scheduler
+					    (Done)
+
+  - Human command controller, optional      (Done partually, needs update)
+
+  - Simplified build harness                (Done)
+
