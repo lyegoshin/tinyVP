@@ -1,4 +1,4 @@
-P               = mips-linux-gnu-
+P               = mips-mti-linux-gnu-
 #P               = /usr/local/mips-2014.11/bin/mips-sde-elf-
 CC              = $(P)gcc -mips32r2 -EL -g -nostdlib
 OBJCOPY         = $(P)objcopy
@@ -8,15 +8,15 @@ LDFLAGS         = -T pic32mz.ld -e _start
 
 PROG            = uart
 
-all:            $(PROG).hex $(PROG).srec
+all:            $(PROG).hex # $(PROG).srec
 
 $(PROG).hex:   $(PROG).c
 		$(CC) $(CFLAGS) -c $<
 		$(CC) $(LDFLAGS) $(PROG).o $(LIBS) -o $(PROG).elf
-		$(OBJCOPY) -O ihex --change-addresses -0x2BE8000 $(PROG).elf $(PROG).hex
+#                $(OBJCOPY) -O ihex --change-addresses -0x2BE8000 $(PROG).elf $(PROG).hex
 		$(OBJDUMP) -mmips:isa32r2 -d -S $(PROG).elf > $(PROG).dis
 
 $(PROG).srec:
-		mips-linux-gnu-objcopy -O srec uart.hex uart.srec
+		mips-mti-linux-gnu-objcopy -O srec uart.hex uart.srec
 clean:
-		rm -f *.o *.lst *~ *.elf *.hex *.dis
+		rm -f *.o *.lst *~ *.elf *.hex *.dis *.srec
