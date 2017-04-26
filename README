@@ -87,6 +87,12 @@ code in tinyVP.
 watchdog or deadman timers. Of course, if you give a guest a write access to it
 then you should think about it twice.
 
+4. tinyVP startup code doesn't setup any boot-related EJTAG restriction or access
+restriction or whatever. It is done intentionally, to prevent an accident loss
+of PIC32MZEF SoC due to programming error in initial development. So, security
+is provided only after tinyVP starts and not against EJTAG.
+   But nothing in tinyVP prevents setting it in production to prevent EJTAG-ing.
+
 
 LICENSING and COPYING
 =====================
@@ -109,9 +115,12 @@ for guest2, and print some symbols on console to mark a progress.
   Root also has a background process which just prints periodically a current
 system time. Some input symbols into root are interpreted as some commands.
 
-    0. Python 3.0 is needed; MIPS Linux "MTI" variant toolchain is needed from
+    0.  Ensure these tools are installed on the build machine.
+	 * Python 3 (i.e., Python 3.0 and later)
+	 * SRecord tools (srec_cat, etc.; in package "srecord" on Linux)
+	 * "MIPS Linux "MTI" variant toolchain; available from:
 
-    https://community.imgtec.com/developers/mips/tools/codescape-mips-sdk/download-codescape-mips-sdk-essentials/
+	   https://community.imgtec.com/developers/mips/tools/codescape-mips-sdk/download-codescape-mips-sdk-essentials/
 
     1.  Build guests ELF files
 

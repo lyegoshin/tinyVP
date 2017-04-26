@@ -3,7 +3,7 @@
 import sys
 import os
 
-readelf = "mips-linux-gnu-readelf"
+readelf = "mips-mti-linux-gnu-readelf"
 if "MIPS-LINUX-GNU-" in os.environ:
     readelf = os.environ["MIPS-LINUX-GNU-"] + "readelf"
 filename = sys.argv[1]

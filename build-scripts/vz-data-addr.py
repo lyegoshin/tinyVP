@@ -4,7 +4,7 @@ import sys
 import os
 
 filename = sys.argv[1]
-cmd = "mips-linux-gnu-nm " + filename
+cmd = "mips-mti-linux-gnu-nm " + filename
 f = os.popen(cmd)
 for line in f:
     line2 = line.strip()
