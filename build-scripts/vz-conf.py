@@ -1088,7 +1088,8 @@ for vmid in configuration:
 	if os.path.isfile(cmdname):
 	    fl = open(cmdname)
 	    for line in fl:
-		line = line.replace("$OFFSET", hex(offset))
+		if '$OFFSET' in line:
+		    line = line.replace("$OFFSET", hex(offset))
 		objcopy.append(line)
 	    fl.close()
 print ""
