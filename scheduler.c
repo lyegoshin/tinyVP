@@ -39,23 +39,36 @@ void switch_to_vm(struct exception_frame *exfr, unsigned int vmid)
 		return;
 
 	if (current->vmid) {
-		if (read_g_cp0_wired())
-			panic_thread(exfr, "CP0_WIRED is not zero\n");
 
 		current->g_cp0_index        = read_g_cp0_index();
+		current->g_cp0_entryhi      = read_g_cp0_entryhi();
 		current->g_cp0_entrylo0     = read_g_cp0_entrylo0();
 		current->g_cp0_entrylo1     = read_g_cp0_entrylo1();
+		current->g_cp0_pagemask     = read_g_cp0_pagemask();
+
+		if (current->g_cp0_wired = read_g_cp0_wired()) {
+			int i;
+			for ( i=0; i < current->g_cp0_wired; i++ ) {
+				write_g_cp0_index(i);
+				ehb();
+				tlbgr();
+				ehb();
+				current->g_cp0_wired_hi[i] = read_g_cp0_entryhi();
+				current->g_cp0_wired_lo0[i] = read_g_cp0_entrylo0();
+				current->g_cp0_wired_lo1[i] = read_g_cp0_entrylo1();
+				current->g_cp0_wired_pm[i] = read_g_cp0_pagemask();
+			}
+		}
+
 		current->g_cp0_context      = read_g_cp0_context();
 
 		current->g_cp0_userlocal    = read_g_cp0_userlocal();
-		current->g_cp0_pagemask     = read_g_cp0_pagemask();
 		current->g_cp0_pagegrain    = read_g_cp0_pagegrain();
 		current->g_cp0_hwrena       = read_g_cp0_hwrena();
 
 		current->g_cp0_badvaddr     = read_g_cp0_badvaddr();
 		current->g_cp0_badinst      = read_g_cp0_badinst();
 		current->g_cp0_badinstp     = read_g_cp0_badinstp();
-		current->g_cp0_entryhi      = read_g_cp0_entryhi();
 
 		current->g_cp0_compare      = read_g_cp0_compare();
 		current->g_cp0_status       = read_g_cp0_status();
@@ -87,20 +100,36 @@ void switch_to_vm(struct exception_frame *exfr, unsigned int vmid)
 	current->exfr.gpr[SP] = exfr->gpr[SP]; // move stack ptr to today's level
 
 	if (vmid) {
+		if (current->g_cp0_wired) {
+			int i;
+			for ( i=0; i < current->g_cp0_wired; i++ ) {
+				write_g_cp0_index(i);
+				write_g_cp0_entryhi(current->g_cp0_wired_hi[i]);
+				write_g_cp0_entrylo0(current->g_cp0_wired_lo0[i]);
+				write_g_cp0_entrylo1(current->g_cp0_wired_lo1[i]);
+				write_g_cp0_pagemask(current->g_cp0_wired_pm[i]);
+				ehb();
+				tlbgwi();
+				ehb();
+			}
+		}
+		write_g_cp0_wired(current->g_cp0_wired);
+
 		write_g_cp0_index(    current->g_cp0_index        );
+		write_g_cp0_entryhi(  current->g_cp0_entryhi      );
 		write_g_cp0_entrylo0( current->g_cp0_entrylo0     );
 		write_g_cp0_entrylo1( current->g_cp0_entrylo1     );
+		write_g_cp0_pagegrain(current->g_cp0_pagegrain    );
+
 		write_g_cp0_context(  current->g_cp0_context      );
 
 		write_g_cp0_userlocal(current->g_cp0_userlocal    );
 		write_g_cp0_pagemask( current->g_cp0_pagemask     );
-		write_g_cp0_pagegrain(current->g_cp0_pagegrain    );
 		write_g_cp0_hwrena(   current->g_cp0_hwrena       );
 
 		write_g_cp0_badvaddr( current->g_cp0_badvaddr     );
 		write_g_cp0_badinst(  current->g_cp0_badinst      );
 		write_g_cp0_badinstp( current->g_cp0_badinstp     );
-		write_g_cp0_entryhi(  current->g_cp0_entryhi      );
 
 		write_g_cp0_status(   current->g_cp0_status       );
 		write_g_cp0_nestedepc(current->g_cp0_nested_epc   );

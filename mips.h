@@ -48,7 +48,9 @@ static inline unsigned int ei(void)
 #define im_up(ie)       { ie = di(); }
 #define im_down(ie)     { if (ie & CP0_STATUS_IE) ei(); }
 
-#define ehb()   __asm__ __volatile__("ehb"::)
+#define ehb()       __asm__ __volatile__("ehb"::)
+#define tlbgr()     __asm__ __volatile__(".set\tvirt\ntlbgr"::)
+#define tlbgwi()    __asm__ __volatile__(".set\tvirt\ntlbgwi"::)
 
 #define CP0_REGISTER(name,ASM,ASM2)                     \
 enum  cp0_name_##name  {                                \

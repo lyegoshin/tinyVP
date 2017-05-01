@@ -139,6 +139,10 @@ struct thread {
 	unsigned int        g_cp0_kscratch0;
 	unsigned int        g_cp0_kscratch1;
 	//unsigned int        g_cp0_kscratch[4];
+	unsigned int        g_cp0_wired_hi[63];
+	unsigned int        g_cp0_wired_lo0[63];
+	unsigned int        g_cp0_wired_lo1[63];
+	unsigned int        g_cp0_wired_pm[63];
 
 	unsigned int        guest_read_count;
 	unsigned long long  guest_read_time;
