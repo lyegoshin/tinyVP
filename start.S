@@ -563,8 +563,8 @@ _save_fpu_regs:
 	.set hardfloat
 	.set noreorder
 	mfc0    at, CP0_STATUS
-	xori    t0, $0, 1
-	ins     at, t0, CP0_STATUS_FR_SHIFT, 1
+	lui     t0, %hi(CP0_STATUS_CU1|CP0_STATUS_FR)
+	or      at, at, t0
 	mtc0    at, CP0_STATUS
 	ehb
 	.irp    reg, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, \
@@ -584,8 +584,8 @@ _restore_fpu_regs:
 	.set hardfloat
 	.set noreorder
 	mfc0    at, CP0_STATUS
-	xori    t0, $0, 1
-	ins     at, t0, CP0_STATUS_FR_SHIFT, 1
+	lui     t0, %hi(CP0_STATUS_CU1|CP0_STATUS_FR)
+	or      at, at, t0
 	mtc0    at, CP0_STATUS
 	ehb
 	lw      at, PTR_FCR31(fp)
