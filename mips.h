@@ -524,9 +524,9 @@ static inline void bzero(unsigned long addr, unsigned long size)
 	a1 = (size);
 	__asm__ __volatile__(
 		"jal    _bzero"
+		: "+r"(a0), "+r"(a1)
 		:
-		:
-		: "$1", "$4", "$5", "$31");
+		: "$1", "$31");
 }
 
 static inline void restore_fpu_regs(void)
