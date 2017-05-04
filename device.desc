@@ -42,3 +42,4 @@ oscillator  Board oscillators controll access (8.2)     0x1f801200  0x200
 	    PBxDIV, SLEWCON, CLKSTAT
 	    Access is in "read/write-ignore" mode, shared
 
+sw0/sw1     IRQ1/IRQ2 interrupt-only emulator. It supports SW0/SW1 IRQs

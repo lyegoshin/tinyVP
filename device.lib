@@ -24,6 +24,20 @@
 .
 
 .device
+    name = sw0
+    irq = 1
+    emulator = interrupt
+    share = 1
+.
+
+.device
+    name = sw1
+    irq = 2
+    emulator = interrupt
+    share = 1
+.
+
+.device
     name = portA
     registers = 0x1f860000 0x100 rw
 .

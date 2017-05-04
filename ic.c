@@ -726,3 +726,19 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 
 	return -1;
 }
+
+emulator_ic_write   interrupt_ic;
+
+unsigned int        interrupt_ic(struct exception_frame *exfr, unsigned int irq)
+{
+	/* start IRQ in vm ... */
+	enforce_irq(exfr, current->vmid, irq);
+}
+
+extern emulator_irq    interrupt_irq;
+
+unsigned int    interrupt_irq(struct exception_frame *exfr, unsigned int irq,
+			   unsigned int ipl)
+{
+	return 0;
+}
