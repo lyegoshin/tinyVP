@@ -612,9 +612,9 @@ _save_dsp_regs:
 	ehb
 	.irp    reg, 1, 2, 3
 	mfhi    at, $ac\reg
-	sw      at, PTR_FCR31 + 8 + \reg * 8 (v0)
+	sw      at, PTR_FCR31 + \reg * 8 (v0)
 	mflo    at, $ac\reg
-	sw      at, PTR_FCR31 + 8 + 4 + \reg * 8 (v0)
+	sw      at, PTR_FCR31 + 4 + \reg * 8 (v0)
 	.endr
 	rddsp   at, 0x3f
 	jr      ra
@@ -634,9 +634,9 @@ _restore_dsp_regs:
 	mtc0    at, CP0_STATUS
 	ehb
 	.irp    reg, 1, 2, 3
-	lw      at, PTR_FCR31 + 8 + \reg * 8 (fp)
+	lw      at, PTR_FCR31 + \reg * 8 (fp)
 	mthi    at, $ac\reg
-	lw      at, PTR_FCR31 + 8 + 4 + \reg * 8 (fp)
+	lw      at, PTR_FCR31 + 4 + \reg * 8 (fp)
 	mtlo    at, $ac\reg
 	.endr
 	lw    at, PTR_FCR31 + 4 (fp)
