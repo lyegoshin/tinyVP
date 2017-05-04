@@ -83,9 +83,9 @@ void insert_IRQ(struct exception_frame *exfr, unsigned int vm, int irq, unsigned
 
 	oldvm = current->vmid;
 	if (vm != oldvm) {
-		if (get_status__ipl(next->g_cp0_status) >= ipl)
-			return;
-		if (!request_switch_to_vm(exfr, vm)) {
+		if ((get_status__ipl(next->g_cp0_status) < ipl) ||
+		    !request_switch_to_vm(exfr, vm)) {
+
 			next->thread_flags |= THREAD_FLAGS_RUNNING;
 
 			voff = get_thread_irq2off(next, irq);
@@ -98,8 +98,8 @@ void insert_IRQ(struct exception_frame *exfr, unsigned int vm, int irq, unsigned
 
 			return;
 		}
-	} else if (get__ipl(read_g_cp0_viewipl()) >= ipl)
-		return;
+	}
+
 	next->thread_flags |= THREAD_FLAGS_RUNNING;
 
 	voff = get_irq2off(irq);
