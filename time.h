@@ -50,5 +50,6 @@ struct timer {
 
 void timer_request(struct timer *timer, unsigned long long delay,
 		   void (*func)(void));
+unsigned long long time_convert_clocks(unsigned int clock);
 
 #endif

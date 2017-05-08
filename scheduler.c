@@ -143,12 +143,15 @@ void switch_to_vm(struct exception_frame *exfr, unsigned int vmid)
 		write_g_cp0_kscratch1(current->g_cp0_kscratch1    );
 		write_g_cp0_intctl(   current->g_cp0_intctl       );
 
-		write_g_cp0_compare(  current->g_cp0_compare      );
+		write_g_cp0_cause(    current->g_cp0_cause        );
 		ehb();
 		// CP0 registers
 		write_cp0_gtoffset(   current->cp0_gtoffset       );
 		ehb();
-		write_g_cp0_cause(    current->g_cp0_cause        );
+		write_g_cp0_compare(  current->g_cp0_compare      );
+		ehb();
+		if (current->g_cp0_cause & CP0_CAUSE_TI)
+			write_g_cp0_cause(    current->g_cp0_cause        );
 		write_cp0_guestctl0ext( current->cp0_guestctl0ext );
 		write_cp0_guestctl2(  current->cp0_guestctl2      );
 		write_cp0_guestctl3(  current->cp0_guestctl3      );
