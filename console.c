@@ -88,35 +88,42 @@ unsigned int  console(struct exception_frame *exfr,
 		switch (offset) {
 		case (&(console_uart->UxTXREG) - &(console_uart->UxMODE)):
 			printf("%c", value);
-			return 1;
+			break;
 		case (&(console_uart->UxSTA) - &(console_uart->UxMODE)):
 			console_reg_sta[vmid] = value;
-			return 1;
+			break;
 		case (&(console_uart->UxSTACLR) - &(console_uart->UxMODE)):
 			console_reg_sta[vmid] &= ~value;
-			return 1;
+			break;
 		case (&(console_uart->UxSTASET) - &(console_uart->UxMODE)):
 			console_reg_sta[vmid] |= value;
-			return 1;
+			break;
 		case (&(console_uart->UxSTAINV) - &(console_uart->UxMODE)):
 			console_reg_sta[vmid] ^= value;
-			return 1;
+			break;
 		case (&(console_uart->UxMODE) - &(console_uart->UxMODE)):
 			console_reg_mode[vmid] = value;
-			return 1;
+			break;
 		case (&(console_uart->UxMODECLR) - &(console_uart->UxMODE)):
 			console_reg_mode[vmid] &= ~value;
-			return 1;
+			break;
 		case (&(console_uart->UxMODESET) - &(console_uart->UxMODE)):
 			console_reg_mode[vmid] |= value;
-			return 1;
+			break;
 		case (&(console_uart->UxMODEINV) - &(console_uart->UxMODE)):
 			console_reg_mode[vmid] ^= value;
-			return 1;
+			break;
+		default:
+			; /* ignore write */
 		}
-		/* ignore write */
+		if ((console_reg_sta[vmid] & UART_STA_TXENA) &&
+		    (console_reg_mode[vmid] & UART_MODE_ENABLE)) {
+			insert_sw_irq(vmid, console_irq_tx);
+			enforce_irq(exfr, vmid, console_irq_tx);
+		}
 		return 1;
 	};
+
 	if (flag < 0) {
 		/* read from console */
 		switch (offset) {
@@ -211,7 +218,12 @@ emulator_ic_write   console_ic;
 
 unsigned int        console_ic(struct exception_frame *exfr, unsigned int irq)
 {
-	/* start IRQ in vm ... */
+	/* start IRQ in VM ... */
+	if ((console_reg_sta[current->vmid] & UART_STA_TXENA) &&
+	    (console_reg_mode[current->vmid] & UART_MODE_ENABLE)) {
+		insert_sw_irq(current->vmid, console_irq_tx);
+		enforce_irq(exfr, current->vmid, console_irq_tx);
+	}
 	if (irq == console_irq_rx)
 		enforce_irq(exfr, current->vmid, console_irq_rx);
 }
