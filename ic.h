@@ -79,7 +79,8 @@
 #define     IC_CP0_TIMER_WORD_NUMBER    0
 #define     IC_TIMER_IRQ                0
 
-#define     IC_IPC_LIMITER              0x04040404
+#define     IC_IPC_LIMIT_MASK           0x0000001c
+#define     IC_IPC_LIMIT                0x00000018
 
 struct vmic {
 	unsigned int w4[74];    // hdr=4, IFS=7+1, IEC=7+1 and IPC=54 words

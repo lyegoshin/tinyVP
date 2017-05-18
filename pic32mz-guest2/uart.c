@@ -60,7 +60,7 @@ asm ("           nop       ");
 
 asm ("          .org    0x180");
 asm ("          .word 0x42008028");
-asm ("          .org    0x1e0");
+asm ("          .org    0x1d0");
 
 //asm ("1:          b    1b");
 //asm ("          .word 0x42000028");
@@ -68,7 +68,7 @@ asm ("          .org    0x1e0");
 asm ("          la      $k0, 0xbf822600");
 asm ("          lw      $k1, 0x10($k0)");
 asm ("          rotr    $k1, 1");
-asm ("          bgez    $k1, _return");
+asm ("          bgez    $k1, _timer_return");
 asm ("           nop       ");
 asm ("          lw      $k1, 0x30($k0)");
 asm ("          la      $k0, rxsymbol");
@@ -76,8 +76,13 @@ asm ("          sw      $k1, 0($k0)");
 asm ("          la      $k0, 0xbf810094");
 asm ("          li      $k1, 0x0800");
 asm ("          sw      $k1, 0($k0)");
-asm ("_return:          ");
+asm ("          eret       ");
+asm ("           nop       ");
+asm ("_timer_return:          ");
 //asm ("          .word 0x42000028");
+asm ("          la      $k0, 0xbf8100c4");
+asm ("          li      $k1, 0x1");
+asm ("          sw      $k1, 0($k0)");
 asm ("          eret       ");
 asm ("           nop       ");
 

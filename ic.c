@@ -47,7 +47,7 @@ unsigned int get_vmic_ipl(unsigned int irq)
 	unsigned int ipc;
 	int bit_shift;
 
-	word = (current->vmdev.vmic.w4[(irq/32) + (IC_IPC_BASE_OFFSET/16)]) >> 2;
+	word = (current->vmdev.vmic.w4[(irq/4) + (IC_IPC_BASE_OFFSET/16)]);
 	bit_shift = (irq % 4) * 8;
 	ipc_mask = 0x1F << (bit_shift);
 	ipc = (word & ipc_mask) >> (bit_shift + 2);
@@ -100,7 +100,7 @@ inline unsigned int get_thread_vmic_ipc(struct thread *thread, unsigned int irq)
 	unsigned int shift;
 	unsigned int word;
 
-	offset = IC_IPC_BASE_OFFSET + (irq/4);
+	offset = IC_IPC_BASE_OFFSET + ((irq/4)*16);
 	shift = (irq & 0x3) * 8;
 	word = read_thread_vmic(thread, offset);
 	return (word >> shift) & 0xff;
@@ -141,11 +141,15 @@ void    irq_mask(unsigned irq)
 }
 
 // IFS/IEC write, finish injection (1), restore rIEC (2) for next interrupt
-void    ic_end_irq(struct exception_frame *exfr, unsigned long va, unsigned int mask, unsigned long value)
+void    ic_end_irq(struct exception_frame *exfr, unsigned long va,
+		   unsigned int mask, unsigned int emulator_flag,
+		   unsigned long value)
 {
 	volatile unsigned int *iec;
 	volatile unsigned int *iecprobe;
 	unsigned int bitmask;
+	unsigned int emul_bitmask;
+	unsigned int mask2;
 	unsigned long vareg;
 
 	vareg = va & ~IC_CSI_MASK;
@@ -154,10 +158,12 @@ void    ic_end_irq(struct exception_frame *exfr, unsigned long va, unsigned int 
 	case 0:
 		// just write
 		bitmask = mask & ~value;
+		emul_bitmask = emulator_flag & ~value;
 		break;
 	case IC_CLR_OFFSET:
 		// CLR
-		bitmask = value & mask;
+		bitmask = mask & value;
+		emul_bitmask = emulator_flag & value;
 		break;
 	case IC_SET_OFFSET:
 		// SET
@@ -168,6 +174,9 @@ void    ic_end_irq(struct exception_frame *exfr, unsigned long va, unsigned int 
 			  ~(value ^
 			    (current->vmdev.vmic.w4[(vareg - IC_BASE)/16] |
 			    *KSEG1(vareg)));
+		emul_bitmask = emulator_flag &
+			  ~(value ^
+			    (current->vmdev.vmic.w4[(vareg - IC_BASE)/16]));
 		break;
 	default:
 		panic_thread(exfr, "IC: 2: Invalid thread IFS/IEC/IPC access type");
@@ -177,18 +186,18 @@ void    ic_end_irq(struct exception_frame *exfr, unsigned long va, unsigned int 
 	if (vareg < IC_IEC_BASE)
 		iec = KSEG1(vareg + (IC_IEC_BASE_OFFSET - IC_IFS_BASE_OFFSET));
 
-	if (current->injected_irq >= 0) {
-		iecprobe = ic_iec(current->injected_irq, &mask);
-		if ((iecprobe == iec) && (bitmask & mask)) {
-			// exc_injected_handler(exfr);
-			cancel_inject_IRQ(exfr);
-		}
-	}
-
 	if (vareg < IC_IEC_BASE) {
 		// copy vIEC into rIEC for cleared IFS bits
 		*iec = (*iec & ~bitmask) |
 		       (current->vmdev.vmic.w4[(iec - IC_PTR)/4] & bitmask);
+	}
+
+	// cancel an injected IRQ and try to inject the next one
+	if (current->injected_irq >= 0) {
+		iecprobe = ic_iec(current->injected_irq, &mask2);
+		if ((iecprobe == iec) && ((bitmask|emul_bitmask) & mask2)) {
+			cancel_inject_IRQ(exfr);
+		}
 	}
 }
 
@@ -312,7 +321,7 @@ void do_IRQ(struct exception_frame *exfr)
 {
 	unsigned int irq = (*IC_INTSTAT) & IC_INTSTAT_SIRQ_MASK;
 
-unsigned char str[64];
+unsigned char str[128];
 
 	switch (irq) {
 	case _TIMER_IRQ:
@@ -344,7 +353,7 @@ void init_IRQ(void)
 	volatile unsigned int *priss;
 	volatile unsigned int *ipc;
 	unsigned int ipc_mask, bit_shift;
-unsigned char str[64];
+unsigned char str[128];
 
 	*IC_INTCON = IC_INTCON_INIT;
 
@@ -453,6 +462,9 @@ unsigned long emulate_write_ic(struct exception_frame *exfr,
 		panic_thread(exfr, "IC: Invalid thread IFS/IEC/IPC access type");
 	}
 	write_vmic(vaoff, v);
+
+	if (va < IC_IPC_BASE)
+		ic_end_irq(exfr, va, *mask, emulator_flag, gpr);
 
 #if 0
 	// accelerate return for CP0 timer IRQ only
@@ -567,11 +579,19 @@ int ic_emulator(struct exception_frame *exfr)
 			gpr = emulate_write_ic(exfr, va, vaoff, gpr, &mask);
 			if (!mask)
 				return 1;
+
 			// disallow a highest PRIO for guest
-			if ((va >= IC_IPC_BASE) && (va < IC_OFF_BASE))
-				gpr &= ~IC_IPC_LIMITER;
-			else
-				ic_end_irq(exfr, va, mask, gpr);
+			if ((va >= IC_IPC_BASE) && (va < IC_OFF_BASE)) {
+				if ((gpr & IC_IPC_LIMIT_MASK) > IC_IPC_LIMIT)
+					gpr = (gpr & ~IC_IPC_LIMIT_MASK) | IC_IPC_LIMIT;
+				if ((gpr & (IC_IPC_LIMIT_MASK << 8)) > (IC_IPC_LIMIT << 8))
+					gpr = (gpr & ~(IC_IPC_LIMIT_MASK << 8)) | (IC_IPC_LIMIT << 8);
+				if ((gpr & (IC_IPC_LIMIT_MASK << 16)) > (IC_IPC_LIMIT << 16))
+					gpr = (gpr & ~(IC_IPC_LIMIT_MASK << 16)) | (IC_IPC_LIMIT << 16);
+				if ((gpr & (IC_IPC_LIMIT_MASK << 24)) > (IC_IPC_LIMIT << 24))
+					gpr = (gpr & ~(IC_IPC_LIMIT_MASK << 24)) | (IC_IPC_LIMIT << 24);
+			}
+
 			if (va & IC_CSI_MASK)
 				*KSEG1(va) = gpr;
 			else
@@ -593,6 +613,12 @@ int ic_emulator(struct exception_frame *exfr)
 		case sw_op:
 			write_vmic_off(vaoff, gpr_read(exfr, rt));
 			return 1;
+		case sb_op:
+			gpr = read_vmic_off(vaoff & ~0x3);
+			gpr = gpr & ~(0xff << ((vaoff & 0x3) * 8));       // LE only
+			gpr = gpr | ((gpr_read(exfr, rt) & 0xff) << ((vaoff & 0x3) * 8)); // LE only
+			write_vmic_off(vaoff, gpr);
+			return 1;
 		default:
 			panic_thread(exfr, "IC: Invalid thread OFF access type");
 			return 0;
@@ -607,11 +633,9 @@ int ic_emulator(struct exception_frame *exfr)
 
 // select a highest IPL SW IRQ from word
 unsigned int pickup_word_sw_irq(struct exception_frame *exfr,
-				unsigned int word, unsigned int *vaddr,
+				unsigned int word, unsigned int irqoff,
 				unsigned int *tipl, unsigned int gipl)
 {
-	unsigned long irqoff = ((((unsigned long)vaddr -
-				(unsigned long)&(current->vmdev.vmic.w4[0]))/16)*32);
 	int irq0 = -1;
 	int ipl0 = -1;
 	int ipl;
@@ -648,8 +672,8 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 	volatile unsigned int *rifsp;
 	unsigned int const *pmask;
 	unsigned int word;
-	int tipl0;
-	int irq0;
+	unsigned int tipl0 = 0;
+	int irq0 = -1;
 	int irq;
 
 	if (read_g_cp0_cause() & CP0_CAUSE_TI)
@@ -659,12 +683,11 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 	iecp = &(current->vmdev.vmic.w4[(IC_IEC_BASE_OFFSET)/16]) - 1;
 	rifsp = IC_IFS - 1;
 	pmask = vm_ic_masks[current->vmid] - 1;
-	tipl0 = -1;
-	irq0 = -1;
+	*tipl = 0;
 
 	/* word 0 */
 	if ((word = ((*++ifsp) & (*++iecp)) | ((*++rifsp) & (*++pmask)))) {
-		irq = pickup_word_sw_irq(exfr, word, ifsp, tipl, gipl);
+		irq = pickup_word_sw_irq(exfr, word, 0, tipl, gipl);
 		if ((irq >= 0) && (*tipl > tipl0)) {
 			tipl0 = *tipl;
 			irq0 = irq;
@@ -672,7 +695,7 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 	}
 	/* word 1 */
 	if ((word = ((*++ifsp) & (*++iecp)) | ((*++rifsp) & (*++pmask)))) {
-		irq = pickup_word_sw_irq(exfr, word, ifsp, tipl, gipl);
+		irq = pickup_word_sw_irq(exfr, word, 32, tipl, gipl);
 		if ((irq >= 0) && (*tipl > tipl0)) {
 			tipl0 = *tipl;
 			irq0 = irq;
@@ -680,7 +703,7 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 	}
 	/* word 2 */
 	if ((word = ((*++ifsp) & (*++iecp)) | ((*++rifsp) & (*++pmask)))) {
-		irq = pickup_word_sw_irq(exfr, word, ifsp, tipl, gipl);
+		irq = pickup_word_sw_irq(exfr, word, 64, tipl, gipl);
 		if ((irq >= 0) && (*tipl > tipl0)) {
 			tipl0 = *tipl;
 			irq0 = irq;
@@ -688,7 +711,7 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 	}
 	/* word 3 */
 	if ((word = ((*++ifsp) & (*++iecp)) | ((*++rifsp) & (*++pmask)))) {
-		irq = pickup_word_sw_irq(exfr, word, ifsp, tipl, gipl);
+		irq = pickup_word_sw_irq(exfr, word, 96, tipl, gipl);
 		if ((irq >= 0) && (*tipl > tipl0)) {
 			tipl0 = *tipl;
 			irq0 = irq;
@@ -696,7 +719,7 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 	}
 	/* word 4 */
 	if ((word = ((*++ifsp) & (*++iecp)) | ((*++rifsp) & (*++pmask)))) {
-		irq = pickup_word_sw_irq(exfr, word, ifsp, tipl, gipl);
+		irq = pickup_word_sw_irq(exfr, word, 128, tipl, gipl);
 		if ((irq >= 0) && (*tipl > tipl0)) {
 			tipl0 = *tipl;
 			irq0 = irq;
@@ -704,7 +727,7 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 	}
 	/* word 5 */
 	if ((word = ((*++ifsp) & (*++iecp)) | ((*++rifsp) & (*++pmask)))) {
-		irq = pickup_word_sw_irq(exfr, word, ifsp, tipl, gipl);
+		irq = pickup_word_sw_irq(exfr, word, 160, tipl, gipl);
 		if ((irq >= 0) && (*tipl > tipl0)) {
 			tipl0 = *tipl;
 			irq0 = irq;
@@ -712,7 +735,7 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 	}
 	/* word 6 */
 	if ((word = ((*++ifsp) & (*++iecp)) | ((*++rifsp) & (*++pmask)))) {
-		irq = pickup_word_sw_irq(exfr, word, ifsp, tipl, gipl);
+		irq = pickup_word_sw_irq(exfr, word, 192, tipl, gipl);
 		if ((irq >= 0) && (*tipl > tipl0)) {
 			tipl0 = *tipl;
 			irq0 = irq;
