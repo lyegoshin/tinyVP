@@ -32,24 +32,34 @@
 
 struct timer {
 	unsigned long long  time;
-	unsigned long       count;
+	unsigned long long  lcount;
+	unsigned long       cnt;
 	struct timer        *prev;
 	struct timer        *next;
-	unsigned int        clock;
 	unsigned int        flag;
-	unsigned int        reserved;
 };
 
 #define TIMER_FLAG_TICK         0x1
 #define TIMER_FLAG_ACTIVE       0x2
 #define TIMER_FLAG_FUNC         0x4
 #define TIMER_FLAG_TIMER_IRQ    0x8
+#define TIMER_FLAG_COUNT        0x10
 
 #define TIMER_TICKS_SECOND      (100)
 #define TIMER_TICK              (TIME_SECOND/TIMER_TICKS_SECOND)
 
+static unsigned long long time_extend_count(unsigned long long base,
+			unsigned int count)
+{
+    if (count >= (unsigned int)(base & 0xffffffffULL))
+	return count | (base & ~0xffffffffULL);
+    return count | ((base & ~0xffffffffULL) + 0x100000000LL);
+}
+
 void timer_request(struct timer *timer, unsigned long long delay,
-		   void (*func)(void));
-unsigned long long time_convert_clocks(unsigned int clock);
+	   void (*func)(void));
+void timer_g_irq_reschedule(unsigned int timerno, unsigned long long clock);
+
+extern volatile unsigned long long current_lcount;
 
 #endif

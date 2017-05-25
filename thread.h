@@ -148,8 +148,10 @@ struct thread {
 	unsigned int        g_cp0_wired_lo1[63];
 	unsigned int        g_cp0_wired_pm[63];
 
-	unsigned int        guest_read_count;
-	unsigned long long  guest_read_time;
+	unsigned int        time_late_counter;
+	unsigned long long  last_used_lcount;
+	unsigned long long  lcompare;
+	unsigned long long  lcount2read;
 };
 #define VM_FRAME_SIZE   ((sizeof(struct thread) + 0x1f) & ~0x1f)
 //#define VM_FRAME_SIZE   ((sizeof(struct thread) + 0x7ff) & ~0x7ff)
@@ -160,6 +162,7 @@ struct thread {
 #define THREAD_FLAGS_EXCTRACE   0x00000008
 #define THREAD_FLAGS_INTTRACE   0x00000010
 #define THREAD_FLAGS_TIMETRACE  0x00000020
+#define THREAD_FLAGS_CHRONIC    0x00000040
 
 #define is_exc_trace()      ((current->thread_flags & (THREAD_FLAGS_DEBUG|THREAD_FLAGS_EXCTRACE)) == \
 				(THREAD_FLAGS_DEBUG|THREAD_FLAGS_EXCTRACE))

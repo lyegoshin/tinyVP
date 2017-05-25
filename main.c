@@ -56,6 +56,7 @@ void    __main(/* void */ unsigned int a1, unsigned int a2, unsigned int a3, uns
 	init_IRQ();
 	irq_set_prio_and_unmask(console_irq_rx, _CONSOLE_PRIO);
 	init_time();
+	write_time_values();
 	init_scheduler();
 
 	ei();
@@ -114,8 +115,8 @@ void    __main(/* void */ unsigned int a1, unsigned int a2, unsigned int a3, uns
 			    vmid,next->exfr.cp0_epc,next->exfr.cp0_srsctl,next->exfr.cp0_context,next->cp0_guestctl2,next->exfr.cp0_cause,
 			    next->exfr.cp0_badvaddr,next->exfr.cp0_badinst,next->thread_flags);
 			uart_writeline(uad, str);
-			sprintf(str,"Guest: EPC=%08x Status=%08x Cause=%08x BVA=%08x BI=%08x; InjectedIRQ=%d\n",
-			    next->g_cp0_epc,next->g_cp0_status,next->g_cp0_cause,next->g_cp0_badvaddr,next->g_cp0_badinst,next->injected_irq);
+			sprintf(str,"Guest: EPC=%08x Status=%08x Cause=%08x BVA=%08x BI=%08x; InjectedIRQ=%d TimeLateCnt=%d\n",
+			    next->g_cp0_epc,next->g_cp0_status,next->g_cp0_cause,next->g_cp0_badvaddr,next->g_cp0_badinst,next->injected_irq,next->time_late_counter);
 			uart_writeline(uad, str);
 			sprintf(str,"LastIRQ=%d %d %d %d; Cause=%d %d %d %d; GCause=%d %d %d %d\n",
 			  (int)(next->last_interrupted_irq & 0xff),(int)((next->last_interrupted_irq >> 8) & 0xff),(int)((next->last_interrupted_irq >> 16) & 0xff),(int)((next->last_interrupted_irq >> 24) & 0xff),

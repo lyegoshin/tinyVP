@@ -28,6 +28,7 @@
 #include    "stdio.h"
 #include    "uart.h"
 #include    "thread.h"
+#include    "time.h"
 
 unsigned int reschedule_vm;
 
@@ -270,14 +271,29 @@ static void do_dsp(struct exception_frame *exfr)
 	restore_dsp_regs();
 }
 
+int recalculate_late_timer(unsigned long long gcount)
+{
+	if ((long long)(current_lcount + current->cp0_gtoffset - gcount) >
+	    (long long)0x0LL) {
+		if ((long long)(current_lcount + current->cp0_gtoffset - gcount) >
+		    (long long)0x7FFFFFFFLL) {
+			current->lcount2read = current->last_used_lcount + 0x7FFFFFFFULL;
+			current->thread_flags |= THREAD_FLAGS_CHRONIC;
+			current->time_late_counter++;
+		}
+		return 1;
+	}
+	return 0;
+}
+
 void do_gpsi(struct exception_frame *exfr)
 {
 	unsigned int inst = exfr->cp0_badinst;
 	unsigned long gpr;
 	unsigned long cp0;
 	unsigned long val;
-	unsigned int diff1;
-	unsigned long long diff2;
+	unsigned int  diff;
+	unsigned long long gcount;
 
 	compute_return_epc(exfr);
 	if (GET_INST_OPCODE(inst) == COP0) {
@@ -296,11 +312,19 @@ void do_gpsi(struct exception_frame *exfr)
 				gpr_write(exfr, gpr, read_cp0_prid());
 				return;
 			case CP0_count_MERGED:
-				current->guest_read_count = read_g_cp0_count();
-				current->guest_read_time = current_wall_time;
-				gpr_write(exfr, gpr, current->guest_read_count);
+				time_update_wall_time();
+				if (current->thread_flags & THREAD_FLAGS_CHRONIC) {
+					current->thread_flags &= ~THREAD_FLAGS_CHRONIC;
+					gcount = current->lcount2read;
+				} else
+					gcount = time_extend_count(current->last_used_lcount,
+							    read_g_cp0_count());
+				current->last_used_lcount = gcount;
+				gpr_write(exfr, gpr, (unsigned int)gcount);
+				if (recalculate_late_timer(gcount))
+					execute_timer_IRQ(exfr, current->vmid);
 				if (is_time_trace()) {
-					sprintf(panicbuf, "MFC0 COUNT: %08x, ReadTime: %T\n",current->guest_read_count,current->guest_read_time);
+					sprintf(panicbuf, "MFC0 COUNT: %08x\n",(unsigned int)gcount);
 					uart_writeline(console_uart, panicbuf);
 				}
 				return;
@@ -346,31 +370,52 @@ void do_gpsi(struct exception_frame *exfr)
 			switch (cp0) {
 			case CP0_count_MERGED:
 				val = gpr_read(exfr, gpr);
-				current->cp0_gtoffset = val - read_cp0_count();
+				time_update_wall_time();
+				diff = read_cp0_count();
+				current->cp0_gtoffset = val - diff;
 				write_cp0_gtoffset(current->cp0_gtoffset);
 				ehb();
-				timer_g_irq_reschedule(current->vmid, read_g_cp0_compare() - current->cp0_gtoffset);
+				gcount = time_extend_count(current_lcount,val);
+				current->last_used_lcount = gcount;
+				current->thread_flags &= ~THREAD_FLAGS_CHRONIC;
 				if (is_time_trace()) {
-					sprintf(panicbuf, "MTC0 COUNT: %08x, GTOffset=%08x\n",val,current->cp0_gtoffset);
+					sprintf(panicbuf, "MTC0 COUNT: %08x, GTOffset: %08x\n",val,current->cp0_gtoffset);
+					uart_writeline(console_uart, panicbuf);
+					sprintf(panicbuf, "MTC0 COUNT: gcount=%llx diff=%llxx\n",gcount,gcount - current->cp0_gtoffset);
 					uart_writeline(console_uart, panicbuf);
 				}
+				timer_g_irq_reschedule(current->vmid, gcount - current->cp0_gtoffset);
 				return;
 			case CP0_compare_MERGED:
 				val = gpr_read(exfr, gpr);
-				write_g_cp0_compare(val);
-				ehb();
 				clear_g_cp0_cause(CP0_CAUSE_TI);
+				ehb();
 				clear_timer_irq();
 				if (current->injected_irq == IC_TIMER_IRQ)
 					cancel_inject_IRQ(exfr);
-				diff1 = val - current->guest_read_count;
-				diff2 = current_wall_time - current->guest_read_time;
-				if (diff2 > time_convert_clocks(diff1))
+				write_g_cp0_compare(val);
+				ehb();
+				time_update_wall_time();
+				gcount = time_extend_count(current->last_used_lcount,val);
+				current->thread_flags &= ~THREAD_FLAGS_CHRONIC;
+				current->lcompare = gcount;
+
+				// check - is it a chronically late?
+				if (recalculate_late_timer(gcount)) {
 					execute_timer_IRQ(exfr, current->vmid);
-				else
-					timer_g_irq_reschedule(current->vmid, val - current->cp0_gtoffset);
+					if (is_time_trace()) {
+						sprintf(panicbuf, "MTC0 COMPARE: %08x\n",val);
+						uart_writeline(console_uart, panicbuf);
+						sprintf(panicbuf, "MTC0 COMPARE: gcount=%llx diff=%llx\n",gcount,gcount - current->cp0_gtoffset);
+						uart_writeline(console_uart, panicbuf);
+					}
+					return;
+				}
+				timer_g_irq_reschedule(current->vmid, gcount - current->cp0_gtoffset);
 				if (is_time_trace()) {
-					sprintf(panicbuf, "MTC0 COMPARE: %08x\n",val);
+					sprintf(panicbuf, "MTC0 COMPARE2: %08x\n",val);
+					uart_writeline(console_uart, panicbuf);
+					sprintf(panicbuf, "MTC0 COMPARE2: gcount=%llx diff=%llx\n",gcount,gcount - current->cp0_gtoffset);
 					uart_writeline(console_uart, panicbuf);
 				}
 				return;
@@ -473,6 +518,7 @@ void do_EXC(struct exception_frame *exfr)
 	unsigned int cause = (exfr->cp0_cause & CP0_CAUSE_CODE) >> CP0_CAUSE_CODE_SHIFT;
 	unsigned int gcause = (exfr->cp0_guestctl0 & CP0_CAUSE_CODE) >> CP0_CAUSE_CODE_SHIFT;
 	unsigned int gstatus;
+	unsigned long long gcount;
 
 	if (is_exc_trace()) {
 		sprintf(panicbuf, "VM%d: exception %d, gcause=%d\n", current->vmid, cause, gcause);
@@ -508,8 +554,21 @@ void do_EXC(struct exception_frame *exfr)
 			do_gsfc(exfr);
 			return;
 		case GUEST_CAUSE_GHFC:
-			if (current->injected_ipl && !get__guestctl2__gripl(read_cp0_guestctl2()))
+			if (current->injected_ipl && !get__guestctl2__gripl(read_cp0_guestctl2())) {
 				exc_injected_handler(exfr);
+
+				if (current->interrupted_irq == IC_TIMER_IRQ) {
+					time_update_wall_time();
+					current->last_used_lcount = current->lcompare;
+					gcount = current->lcompare + 0x100000000LL;
+					current->thread_flags &= ~THREAD_FLAGS_CHRONIC;
+					current->lcompare = gcount;
+					if (recalculate_late_timer(gcount))
+						execute_timer_IRQ(exfr, current->vmid);
+					else
+						timer_g_irq_reschedule(current->vmid, gcount - current->cp0_gtoffset);
+				}
+			}
 			return;
 		}
 		break;

@@ -31,9 +31,9 @@
 /* TEMPORARY */
 #define cpu_get_frequency() (200000000)
 
-static unsigned int time_clock_adjust_current;
+// static unsigned int time_clock_adjust_current;
 static unsigned int clock_time_multiplier;
-static unsigned int current_clock;
+volatile unsigned long long current_lcount;
 unsigned long long initial_wall_time;
 volatile unsigned long long current_wall_time;
 
@@ -42,53 +42,46 @@ static struct timer timerQ = {
     .next = &timerQ,
 };
 
-unsigned long long time_convert_clocks(unsigned int clock)
-{
-	return ((unsigned long long)clock) * clock_time_multiplier;
-}
-
-static unsigned int time_get_clock(void)
+static unsigned long long time_get_lcount(void)
 {
 	unsigned int ie;
-	unsigned int clock;
+	unsigned int count;
 
 	im_up(ie);
-	clock  = read_cp0_count();
-	clock -= time_clock_adjust_current;
+	count  = read_cp0_count();
+//        count -= time_clock_adjust_current;
 	im_down(ie);
 
-	return clock;
+	return time_extend_count(current_lcount,count);
 }
 
-static unsigned int time_set_timer(struct timer *timer)
+static void time_set_timer(struct timer *timer)
 {
 	unsigned int ie;
-	unsigned int cnt;
-	unsigned int clock;
+	unsigned long long lcnt;
+	unsigned long long lcount;
 
 	im_up(ie);
-	clock = timer->clock + time_clock_adjust_current;
-	cnt    = read_cp0_count();
-	if ((int)(clock - cnt) < 50)
-		clock = cnt + 50;
-	write_cp0_compare(clock);
+	lcnt = time_get_lcount();
+	lcount = timer->lcount;
+	if ((long long)(lcount - lcnt) < 100)
+		lcount = lcnt + 100;
+	write_cp0_compare((unsigned int)lcount /* + time_clock_adjust_current */);
 	ehb();
 	im_down(ie);
-
-	return clock;
 }
 
-static void time_update_wall_time(void)
+void time_update_wall_time(void)
 {
-	unsigned int clock;
-	unsigned int clock_delta;
+	unsigned long long lclock;
+	unsigned long long lclock_delta;
 	/* minimum CPU frequency is around 20MHz to avoid exceeding 32bits */
 	unsigned long long time_delta;
 
-	clock = time_get_clock();
-	clock_delta = clock - current_clock;
-	current_clock = clock;
-	time_delta = (unsigned long long)clock_delta * clock_time_multiplier;
+	lclock = time_get_lcount();
+	lclock_delta = lclock - current_lcount;
+	current_lcount = lclock;
+	time_delta = lclock_delta * clock_time_multiplier;
 	current_wall_time = current_wall_time + time_delta;
 }
 
@@ -101,7 +94,10 @@ static void time_insert_timer(struct timer *timer)
 		timer->next->prev = timer->prev;
 	}
 
-	timer->clock = (timer->time + initial_wall_time + clock_time_multiplier - 1) / clock_time_multiplier;
+	if (timer->flag & TIMER_FLAG_COUNT) {
+		timer->time = timer->lcount * clock_time_multiplier - initial_wall_time;
+	} else
+		timer->lcount = (timer->time + initial_wall_time + clock_time_multiplier - 1) / clock_time_multiplier;
 
 	timer->flag |= TIMER_FLAG_ACTIVE;
 	if (timerQ.next == &timerQ) {
@@ -134,14 +130,14 @@ static void handle_event(struct exception_frame *exfr, struct timer *timer)
 	void (*func)(void);
 
 	if (timer->flag & TIMER_FLAG_TICK) {
-		if (++timer->count >= TIMER_TICKS_SECOND) {
-			timer->count = 0;
+		if (++timer->cnt >= TIMER_TICKS_SECOND) {
+			timer->cnt = 0;
 			/* call to scheduler */
 			reschedule(exfr);
 		}
 	} else {
 		if (timer->flag & TIMER_FLAG_FUNC) {
-			func = (void *)timer->count;
+			func = (void *)timer->cnt;
 			func();
 			return;
 		}
@@ -162,7 +158,8 @@ void timer_request(struct timer *timer, unsigned long long delay,
 	timer->time = current_wall_time + delay;
 	if (func) {
 		timer->flag |= TIMER_FLAG_FUNC;
-		timer->count = (unsigned int)func;
+		timer->flag &= ~TIMER_FLAG_COUNT;
+		timer->cnt = (unsigned int)func;
 	}
 	im_up(ie);
 	time_insert_timer(timer);
@@ -170,21 +167,21 @@ void timer_request(struct timer *timer, unsigned long long delay,
 	im_down(ie);
 }
 
-void timer_g_irq_reschedule(unsigned int timerno, unsigned int clock)
+void timer_g_irq_reschedule(unsigned int timerno, unsigned long long clock)
 {
+	unsigned int ie;
 	struct timer *timer;
-	unsigned long long delay;
 
+	im_up(ie);
 	timer = &timer_array[timerno];
-	timer->flag |= TIMER_FLAG_TIMER_IRQ;
-	time_update_wall_time();
-	clock = clock - time_clock_adjust_current - current_clock;
-	// clock now a delta in internal counts
-	delay = (unsigned long long)clock * clock_time_multiplier;
-	timer->time = current_wall_time + delay;
+	timer->flag |= TIMER_FLAG_TIMER_IRQ|TIMER_FLAG_COUNT;
+	timer->lcount = clock /* - time_clock_adjust_current */;
 	time_insert_timer(timer);
 	time_set_timer(timerQ.next);
+	im_down(ie);
 }
+
+extern struct timer tmp_timer;
 
 int time_irq(struct exception_frame *exfr, unsigned int irq)
 {
@@ -198,7 +195,20 @@ int many = 0;
 	for (timer = timerQ.next; timer != &timerQ; timer = timer->next) {
 		if (timer->time > current_wall_time) {
 if (!many) {
-printf("time_irq: timer->time=%llx current_wall_time=%llx\n",timer->time,current_wall_time);
+// Abnormal situation: unexpected CP0 COMPARE IRQ.
+// It usually happens on PIC32MZEF if guest plays with Guest CP0 COMPARE
+// because SoC has a signal buffer for CP0 COMPARE IRQ vs a plain MIPS CPU.
+// However, it happens with time keeping bugs too.
+int i;
+unsigned gcount = read_g_cp0_count();
+unsigned gcompare = read_g_cp0_compare();;
+printf("time_irq: [%d] timer->time=%llx lcount=%llx current_wall_time=%llx current_lcount=%llx\n",timer-timer_array,timer->time,timer->lcount,current_wall_time,current_lcount);
+printf("\tCOUNT=%08x COMPARE=%08x timerQ=%08x next=%08x prev=%08x G.COUNT=%08x G.COMPARE=%08x\n",read_cp0_count(),read_cp0_compare(),(void *)&timerQ, timerQ.next, timerQ.prev,gcount,gcompare);
+for (i=0; i <= MAX_NUM_GUEST; i++)
+    printf("\t%08x: time=%llx lcount=%llx flag=%08x cnt=%d; next=%08x prev=%08x\n",
+(void *)&timer_array[i],timer_array[i].time, timer_array[i].lcount, timer_array[i].flag, timer_array[i].cnt, timer_array[i].next, timer_array[i].prev);
+    printf("\t%08x: time=%llx lcount=%llx flag=%08x cnt=%d; next=%08x prev=%08x\n",
+(void *)&tmp_timer,tmp_timer.time, tmp_timer.lcount, tmp_timer.flag, tmp_timer.cnt, tmp_timer.next, tmp_timer.prev);
 }
 			break;
 		}
@@ -210,7 +220,7 @@ many = 1;
 			timer->time = timer->time + TIMER_TICK;
 			while (timer->time <= (current_wall_time + 1)) {
 				timer->time = timer->time + TIMER_TICK;
-				timer->count++;
+				timer->cnt++;
 			}
 			time_insert_timer(timer);
 		}
@@ -236,8 +246,9 @@ int init_time()
 	clock_time_multiplier = TIME_SECOND / (freq / multiplier);
 
 	timer = &timer_array[0];
-	current_clock = time_get_clock();
-	initial_wall_time = (unsigned long long)current_clock * clock_time_multiplier;
+	current_lcount = 0;
+	current_lcount = time_get_lcount();
+	initial_wall_time = current_lcount * clock_time_multiplier;
 
 	timer->time = TIMER_TICK;
 	timer->flag |= TIMER_FLAG_TICK;
@@ -249,4 +260,13 @@ int init_time()
 	irq_set_prio_and_unmask(_TIMER_IRQ, _TIMER_PRIO);
 
 	return 1;
+}
+
+void write_time_values(void)
+{
+    char str[128];
+
+    sprintf(str, "clock_time_multiplier=%x, initial_wall_time=%T current_lcount=%llx\n",
+	clock_time_multiplier, initial_wall_time, current_lcount);
+    uart_writeline(console_uart, str);
 }

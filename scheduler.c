@@ -241,6 +241,10 @@ void init_vm(unsigned int vmid, int traceflag)
 	thread->injected_irq        =   -1;
 	thread->interrupted_irq        =   -1;
 	thread->last_interrupted_irq   =   -1;
+	thread->last_used_lcount = current_lcount;
+	thread->g_cp0_count = (unsigned int)current_lcount;
+	thread->lcompare = current_lcount - 1;
+	thread->g_cp0_compare = (unsigned int)(thread->lcompare);
 	init_vmic(thread);
 
 	thread->g_cp0_status        = CP0_STATUS_BEV | CP0_STATUS_CU0 | CP0_STATUS_ERL;
