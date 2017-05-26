@@ -99,6 +99,9 @@ void    __main(/* void */ unsigned int a1, unsigned int a2, unsigned int a3, uns
 	    if (console_has_next_char(0)) {
 		unsigned int ie;
 		unsigned char c = console_next_char(0);
+		struct thread *next  = get_vm_fp(vmid);
+
+		im_up(ie);
 
 		switch (c & 0x7f) {
 		case 'T':
@@ -107,52 +110,91 @@ void    __main(/* void */ unsigned int a1, unsigned int a2, unsigned int a3, uns
 
 		case 'q':
 		    if (vmid) {
-			struct thread *next  = get_vm_fp(vmid);
-			sprintf(str,"vm%d: epc=%08x badinst=%08x srsctl=%08x context=%08x gc2=%08x G:epc=%08x status=%08x; thread_flags=%08x\n",vmid,next->exfr.cp0_epc,next->exfr.cp0_badinst,next->exfr.cp0_srsctl,next->exfr.cp0_context,next->cp0_guestctl2,next->g_cp0_epc,next->g_cp0_status,next->thread_flags);
+			sprintf(str,"\nVM%d: EPC=%08x SRSctl=%08x Context=%08x gc2=%08x Cause=%08x BVA=%08x BI=%08x; thread_flags=%08x\n",
+			    vmid,next->exfr.cp0_epc,next->exfr.cp0_srsctl,next->exfr.cp0_context,next->cp0_guestctl2,next->exfr.cp0_cause,
+			    next->exfr.cp0_badvaddr,next->exfr.cp0_badinst,next->thread_flags);
+			uart_writeline(uad, str);
+			sprintf(str,"Guest: EPC=%08x Status=%08x Cause=%08x BVA=%08x BI=%08x; InjectedIRQ=%d\n",
+			    next->g_cp0_epc,next->g_cp0_status,next->g_cp0_cause,next->g_cp0_badvaddr,next->g_cp0_badinst,next->injected_irq);
+			uart_writeline(uad, str);
+			sprintf(str,"LastIRQ=%d %d %d %d; Cause=%d %d %d %d; GCause=%d %d %d %d\n",
+			  (int)(next->last_interrupted_irq & 0xff),(int)((next->last_interrupted_irq >> 8) & 0xff),(int)((next->last_interrupted_irq >> 16) & 0xff),(int)((next->last_interrupted_irq >> 24) & 0xff),
+			  (int)(next->exception_cause & 0xff),(int)((next->exception_cause >> 8) & 0xff),(int)((next->exception_cause >> 16) & 0xff),(int)((next->exception_cause >> 24) & 0xff),
+			  (int)(next->exception_gcause & 0xff),(int)((next->exception_gcause >> 8) & 0xff),(int)((next->exception_gcause >> 16) & 0xff),(int)((next->exception_gcause >> 24) & 0xff));
 			uart_writeline(uad, str);
 		    }
 		    break;
 
 		case 's':
 		    if (vmid) {
-			struct thread *next  = get_vm_fp(vmid);
-			im_up(ie);
 			next->thread_flags &= ~THREAD_FLAGS_RUNNING;
 			next->thread_flags |= THREAD_FLAGS_STOPPED;
-			im_down(ie);
-			sprintf(str,"vm%d: stopped\n",vmid);
+			sprintf(str,"\nVM%d: stopped\n",vmid);
 			uart_writeline(uad, str);
 		    }
 		    break;
 
 		case 'c':
 		    if (vmid) {
-			struct thread *next  = get_vm_fp(vmid);
-			im_up(ie);
 			next->thread_flags &= ~THREAD_FLAGS_STOPPED;
 			next->thread_flags |= THREAD_FLAGS_RUNNING;
-			im_down(ie);
-			sprintf(str,"vm%d: continued\n",vmid);
+			sprintf(str,"\nVM%d: continued\n",vmid);
 			uart_writeline(uad, str);
 		    }
 		    break;
 
 		case 'r':
 		    if (vmid) {
-			struct thread *next  = get_vm_fp(vmid);
-			im_up(ie);
 			next->thread_flags &= ~THREAD_FLAGS_STOPPED;
-			init_vm(vmid);
-			im_down(ie);
-			sprintf(str,"vm%d: restarted\n",vmid);
+			init_vm(vmid, next->thread_flags & THREAD_FLAGS_DEBUG? next->thread_flags : 0);
+			sprintf(str,"\nVM%d: restarted\n",vmid);
 			uart_writeline(uad, str);
 		    }
+		    break;
+
+		case 'd':
+		    if (vmid) {
+			next->thread_flags ^= THREAD_FLAGS_DEBUG;
+			sprintf(str,"\nVM%d: debug %s\n",vmid, next->thread_flags & THREAD_FLAGS_DEBUG? "on" : "off");
+			uart_writeline(uad, str);
+		    }
+		    break;
+
+		case 'e':
+		    if (vmid) {
+			next->thread_flags ^= THREAD_FLAGS_EXCTRACE;
+			sprintf(str,"\nVM%d: exception trace %s\n",vmid, next->thread_flags & THREAD_FLAGS_EXCTRACE? "on" : "off");
+			uart_writeline(uad, str);
+		    }
+		    break;
+
+		case 'i':
+		    if (vmid) {
+			next->thread_flags ^= THREAD_FLAGS_INTTRACE;
+			sprintf(str,"\nVM%d: interrupt trace %s\n",vmid, next->thread_flags & THREAD_FLAGS_INTTRACE? "on" : "off");
+			uart_writeline(uad, str);
+		    }
+		    break;
+
+		case 't':
+		    if (vmid) {
+			next->thread_flags ^= THREAD_FLAGS_TIMETRACE;
+			sprintf(str,"\nVM%d: time trace %s\n",vmid, next->thread_flags & THREAD_FLAGS_TIMETRACE? "on" : "off");
+			uart_writeline(uad, str);
+		    }
+		    break;
+
+		case 'I':
+		    if (vmid)
+			ic_print(next);
 		    break;
 
 		case '0'...'7':
 		    vmid = (c & 0x7f) - '0';
 		    break;
 		}
+
+		im_down(ie);
 	    }
 	} while (1);
 }

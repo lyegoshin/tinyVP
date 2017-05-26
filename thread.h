@@ -64,7 +64,11 @@ struct thread {
 	int        injected_irq;
 	unsigned int        injected_ipl;
 	int        interrupted_irq;
+	unsigned int        last_interrupted_irq;
 	unsigned int        interrupted_ipl;
+
+	int        exception_cause;
+	int        exception_gcause;
 
 	unsigned int        cp0_guestctl0ext;
 	unsigned int        cp0_guestctl1;
@@ -152,6 +156,17 @@ struct thread {
 
 #define THREAD_FLAGS_RUNNING    0x00000001
 #define THREAD_FLAGS_STOPPED    0x00000002
+#define THREAD_FLAGS_DEBUG      0x00000004
+#define THREAD_FLAGS_EXCTRACE   0x00000008
+#define THREAD_FLAGS_INTTRACE   0x00000010
+#define THREAD_FLAGS_TIMETRACE  0x00000020
+
+#define is_exc_trace()      ((current->thread_flags & (THREAD_FLAGS_DEBUG|THREAD_FLAGS_EXCTRACE)) == \
+				(THREAD_FLAGS_DEBUG|THREAD_FLAGS_EXCTRACE))
+#define is_int_trace()      ((current->thread_flags & (THREAD_FLAGS_DEBUG|THREAD_FLAGS_INTTRACE)) == \
+				(THREAD_FLAGS_DEBUG|THREAD_FLAGS_INTTRACE))
+#define is_time_trace()     ((current->thread_flags & (THREAD_FLAGS_DEBUG|THREAD_FLAGS_TIMETRACE)) == \
+				(THREAD_FLAGS_DEBUG|THREAD_FLAGS_TIMETRACE))
 
 register struct thread * current __asm__("$30");
 

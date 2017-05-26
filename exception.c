@@ -299,9 +299,18 @@ void do_gpsi(struct exception_frame *exfr)
 				current->guest_read_count = read_g_cp0_count();
 				current->guest_read_time = current_wall_time;
 				gpr_write(exfr, gpr, current->guest_read_count);
+				if (is_time_trace()) {
+					sprintf(panicbuf, "MFC0 COUNT: %08x, ReadTime: %T\n",current->guest_read_count,current->guest_read_time);
+					uart_writeline(console_uart, panicbuf);
+				}
 				return;
 			case CP0_compare_MERGED:
-				gpr_write(exfr, gpr, read_g_cp0_compare());
+				val = read_g_cp0_compare();
+				gpr_write(exfr, gpr, val);
+				if (is_time_trace()) {
+					sprintf(panicbuf, "MFC0 COMPARE: %08x\n",val);
+					uart_writeline(console_uart, panicbuf);
+				}
 				return;
 			case CP0_cdmmbase_MERGED:
 				gpr_write(exfr, gpr, read_cp0_cdmmbase());
@@ -336,10 +345,15 @@ void do_gpsi(struct exception_frame *exfr)
 			cp0 = EXTRACT_CP0_REG_AND_SEL(inst);
 			switch (cp0) {
 			case CP0_count_MERGED:
-				current->cp0_gtoffset = gpr_read(exfr, gpr) - read_cp0_count();
+				val = gpr_read(exfr, gpr);
+				current->cp0_gtoffset = val - read_cp0_count();
 				write_cp0_gtoffset(current->cp0_gtoffset);
 				ehb();
 				timer_g_irq_reschedule(current->vmid, read_g_cp0_compare() - current->cp0_gtoffset);
+				if (is_time_trace()) {
+					sprintf(panicbuf, "MTC0 COUNT: %08x, GTOffset=%08x\n",val,current->cp0_gtoffset);
+					uart_writeline(console_uart, panicbuf);
+				}
 				return;
 			case CP0_compare_MERGED:
 				val = gpr_read(exfr, gpr);
@@ -351,11 +365,14 @@ void do_gpsi(struct exception_frame *exfr)
 					cancel_inject_IRQ(exfr);
 				diff1 = val - current->guest_read_count;
 				diff2 = current_wall_time - current->guest_read_time;
-				if (diff2 > time_convert_clocks(diff1)) {
+				if (diff2 > time_convert_clocks(diff1))
 					execute_timer_IRQ(exfr, current->vmid);
-					return;
+				else
+					timer_g_irq_reschedule(current->vmid, val - current->cp0_gtoffset);
+				if (is_time_trace()) {
+					sprintf(panicbuf, "MTC0 COMPARE: %08x\n",val);
+					uart_writeline(console_uart, panicbuf);
 				}
-				timer_g_irq_reschedule(current->vmid, val - current->cp0_gtoffset);
 				return;
 			case CP0_srsctl_MERGED:
 			case CP0_srsmap_MERGED:
@@ -388,7 +405,12 @@ void do_gpsi(struct exception_frame *exfr)
 		if (GET_INST_RD(inst) == 4) {
 			// read count
 			gpr = GET_INST_RT(inst);
-			gpr_write(exfr, gpr, read_g_cp0_count());
+			val = read_g_cp0_count();
+			gpr_write(exfr, gpr, val);
+			if (is_time_trace()) {
+				sprintf(panicbuf, "RDHWR4: %08x, GTOffset: %08x\n",val,current->cp0_gtoffset);
+				uart_writeline(console_uart, panicbuf);
+			}
 			return;
 		}
 	}
@@ -449,8 +471,15 @@ extern char *longlong_to_timestring(char *buf, size_t len, unsigned long long n)
 void do_EXC(struct exception_frame *exfr)
 {
 	unsigned int cause = (exfr->cp0_cause & CP0_CAUSE_CODE) >> CP0_CAUSE_CODE_SHIFT;
-	unsigned int gcause;
+	unsigned int gcause = (exfr->cp0_guestctl0 & CP0_CAUSE_CODE) >> CP0_CAUSE_CODE_SHIFT;
 	unsigned int gstatus;
+
+	if (is_exc_trace()) {
+		sprintf(panicbuf, "VM%d: exception %d, gcause=%d\n", current->vmid, cause, gcause);
+		uart_writeline(console_uart, panicbuf);
+	}
+	current->exception_cause = (current->exception_cause << 8) | cause;
+	current->exception_gcause = (current->exception_gcause << 8) | gcause;
 
 	switch (cause) {
 	case CAUSE_TLBM:
@@ -471,7 +500,6 @@ void do_EXC(struct exception_frame *exfr)
 		compute_return_epc(exfr);
 		return;
 	case CAUSE_GE:
-		gcause = (exfr->cp0_guestctl0 & CP0_CAUSE_CODE) >> CP0_CAUSE_CODE_SHIFT;
 		switch (gcause) {
 		case GUEST_CAUSE_GPSI:
 			do_gpsi(exfr);

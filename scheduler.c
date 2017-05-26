@@ -230,40 +230,32 @@ void reschedule(struct exception_frame *exfr)
 	}
 }
 
-void init_vm(unsigned int vmid)
+void init_vm(unsigned int vmid, int traceflag)
 {
 	struct thread *thread = get_vm_fp(vmid);
 	struct exception_frame *exfr = &(thread->exfr);
 
+	bzero((unsigned long)thread, sizeof(struct thread));
+
 	thread->vmid                =   vmid;
-	thread->preempt_count       =   0;
-	thread->reschedule_count    =   0;
 	thread->injected_irq        =   -1;
-	thread->injected_ipl        =   0;
 	thread->interrupted_irq        =   -1;
-	thread->interrupted_ipl        =   0;
+	thread->last_interrupted_irq   =   -1;
 	init_vmic(thread);
 
 	thread->g_cp0_status        = CP0_STATUS_BEV | CP0_STATUS_CU0 | CP0_STATUS_ERL;
 //        thread->g_cp0_status        = 0;
-	thread->g_cp0_cause         = 0;
-	thread->g_cp0_nested_epc    = 0;
 
 	thread->g_cp0_epc           = vm_list[vmid];
 
 	thread->g_cp0_ebase         = CP0_G_EBASE_INIT;
-	thread->g_cp0_errorepc      = 0;
-	thread->g_cp0_kscratch0     = 0;
 
-	thread->g_cp0_kscratch1     = 0;
 	thread->g_cp0_intctl        = CP0_G_INTCTL_INIT;
 
 	thread->g_cp0_compare       = read_cp0_count();
-	thread->cp0_gtoffset        = 0;
 
 	thread->cp0_guestctl0ext    = CP0_GUESTCTL0EXT_INIT;
 	thread->cp0_guestctl1       = (vmid << CP0_GUESTCTL1_RID_SHIFT) | vmid;
-	thread->cp0_guestctl2       = 0;
 	thread->cp0_guestctl3       = vmid;
 
 	exfr->cp0_context       = vmid << CP0_CONTEXT_VM_SHIFT;
@@ -273,7 +265,10 @@ void init_vm(unsigned int vmid)
 	exfr->cp0_guestctl0     = CP0_GUESTCTL0_INIT;
 	exfr->cp0_status        = CP0_STATUS_INIT;
 
-	thread->thread_flags        =   THREAD_FLAGS_RUNNING;
+	if (!traceflag)
+		thread->thread_flags        =   THREAD_FLAGS_RUNNING;
+	else
+		thread->thread_flags        =   traceflag;
 }
 
 void init_scheduler()
@@ -296,7 +291,7 @@ void init_scheduler()
 		if (!vm_list[vmid])
 			continue;
 
-		init_vm(vmid);
+		init_vm(vmid, 0);
 	}
 }
 

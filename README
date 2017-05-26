@@ -180,6 +180,13 @@ system time. Some input symbols into root are interpreted as some commands.
 	    2r          - restart VM2
 	    1q          - print VM1 status
 	    T           - print TLB array
+	    q           - Query, prints various VM states
+	    I           - Interrupt controller printout: IRQ requests, IRQ masks and
+			    virtual IRQ requests + masks
+	    d           - switch ON "debug" mode
+	    e           - print exception trace in debug mode
+	    i           - print interrupt trace in debug mode
+	    t           - print time handling trace (COUNT/COMPARE/IRQ) in debug mode
 
 	(you need to switch to root input before commands, see above)
 

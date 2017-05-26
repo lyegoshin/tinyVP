@@ -48,8 +48,16 @@ void cancel_inject_IRQ(struct exception_frame *exfr)
 
 void exc_injected_handler(struct exception_frame *exfr)
 {
+	char str[128];
+
 	current->interrupted_irq = current->injected_irq;
+	current->last_interrupted_irq = (current->last_interrupted_irq << 8) | (current->interrupted_irq & 0xff);
 	current->interrupted_ipl = current->injected_ipl;
+
+	if (is_int_trace()) {
+		sprintf(str, "VM%d: interrupt %d, ipl %d\n", current->vmid, current->interrupted_irq, current->interrupted_ipl),
+		uart_writeline(console_uart, str);
+	}
 
 	cancel_inject_IRQ(exfr);
 }
@@ -71,6 +79,7 @@ void insert_IRQ(struct exception_frame *exfr, unsigned int vm, int irq, unsigned
 			gc2 = next->cp0_guestctl2;
 		if (!get__guestctl2__gripl(gc2)) {
 			next->interrupted_irq = next->injected_irq;
+			next->last_interrupted_irq = (next->last_interrupted_irq << 8) | (next->interrupted_irq & 0xff);
 			next->interrupted_ipl = next->injected_ipl;
 			next->waiting_irq_number--;
 			next->injected_irq = -1;

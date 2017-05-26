@@ -765,3 +765,31 @@ unsigned int    interrupt_irq(struct exception_frame *exfr, unsigned int irq,
 {
 	return 0;
 }
+
+void ic_print(struct thread *next)
+{
+	int i;
+	char str[128];
+
+	uart_writeline(console_uart, "\nIFS:\n");
+	for (i=0; i<7; i++) {
+	    sprintf(str," %08x", *(IC_IFS + (i * 4)));
+	    uart_writeline(console_uart, str);
+	}
+	uart_writeline(console_uart, "\nIEC:\n");
+	for (i=0; i<7; i++) {
+	    sprintf(str," %08x", *(IC_IEC + (i * 4)));
+	    uart_writeline(console_uart, str);
+	}
+	uart_writeline(console_uart, "\nvmic IFS:\n");
+	for (i=0; i<7; i++) {
+	    sprintf(str," %08x", read_thread_vmic(next, (IC_IFS_BASE_OFFSET + (i * 16))));
+	    uart_writeline(console_uart, str);
+	}
+	uart_writeline(console_uart, "\nvmic IEC:\n");
+	for (i=0; i<7; i++) {
+	    sprintf(str," %08x", read_thread_vmic(next, (IC_IEC_BASE_OFFSET + (i * 16))));
+	    uart_writeline(console_uart, str);
+	}
+	uart_writeline(console_uart, "\n");
+}
