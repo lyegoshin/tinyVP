@@ -1,0 +1,22 @@
+.vm
+    id = 1
+    # irqpolling = 1
+    entry = 0xbfc00000
+    file = MyNewT/pic32_test.elf
+    .mmap
+	code = 0x1fc08000 0x8000 rxds 0x1fc08000
+	code = 0x1fc00000 0x1000 rxd 0x1d030000
+	code = 0x1d000000 0x18000 rxd 0x1d010000
+	data = 0x70000    0x10000 rw  0x40000
+	ram = 0     0x10000 rw 0x1000
+    .
+    device = ic
+    device = sw0
+    # device = uart2
+    device = console
+    device = ports
+    device = syscontroller
+    device = oscillator
+.
+
+

@@ -423,7 +423,8 @@ void do_gpsi(struct exception_frame *exfr)
 			case CP0_srsmap_MERGED:
 			case CP0_srsmap2_MERGED:
 				if (val = gpr_read(exfr, gpr))
-					panic_thread(exfr, "Non-zero SRS is used\n");
+uart_writeline(console_uart, "Non-zero SRS is used\n");
+//                                        panic_thread(exfr, "Non-zero SRS is used\n");
 				return;
 			case CP0_config5_MERGED:
 				write_g_cp0_config5(gpr_read(exfr, gpr));
@@ -462,6 +463,19 @@ void do_gpsi(struct exception_frame *exfr)
 	if (inst_CACHE(inst)) {
 		return;
 	}
+if (inst_WRPGPR(inst)) {
+    gpr = GET_INST_RT(inst);
+    val = GET_INST_RD(inst);
+    gpr_write(exfr, val, gpr_read(exfr, gpr));
+    return;
+}
+if (inst_RDPGPR(inst)) {
+    gpr = GET_INST_RT(inst);
+    val = GET_INST_RD(inst);
+    gpr_write(exfr, val, gpr_read(exfr, gpr));
+    return;
+}
+
 	panic_thread(exfr, "Unknown GPSI\n");
 }
 
