@@ -1,4 +1,4 @@
-tinyVP - tiny embedded MIPS virtualization platform, v0.9
+tinyVP - tiny embedded MIPS virtualization platform, v0.95
 ===========================================================
 
   tinyVP is a very small and lean hypervisor using MIPS R5 hardware VZ option

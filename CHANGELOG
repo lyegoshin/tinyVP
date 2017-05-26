@@ -1,0 +1,30 @@
+5/25/17:    Release 0.95
+
+After testing with MyNewT RTOS from Rantime.io a couple of bugfixes:
+
+    - FPU and DSP context save/restore  :)
+
+    - bzero call is now correct register set
+
+    - insert_IRQ now queues IRQ if it does exist, prevents skipping it
+
+    - Console issues a virtual input IRQ request if input is available
+
+    - A couple of bugfixes in IC emulator, the adequate offsets, the correct
+      place to finish IRQ (before a new IRQ is injected), priority limitation
+      is fixed, signed vs unsigned in IPL processing etc
+
+New features:
+
+    - Essential change of timekeeping: switch to 64bit time and count with
+      high word as "generation" + a correct sequence of save/restore timing
+      registers to prevent a timer interrupt loss.
+
+    - Guest CP0 Wired support
+
+    - New console commands are added for VM debug
+
+    - A little change of an automated build process to allow a multiline build
+      shell macro (optional OFFSET)
+
+    - Empty device emulator is added to allow using MIPS SW0/SW1 interrupts.
