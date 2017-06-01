@@ -1,6 +1,6 @@
 5/25/17:    Release 0.95
 
-After testing with MyNewT RTOS from Rantime.io a couple of bugfixes:
+After testing with MyNewT RTOS from Runtime.io a couple of bugfixes:
 
     - FPU and DSP context save/restore  :)
 
