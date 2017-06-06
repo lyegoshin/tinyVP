@@ -23,6 +23,7 @@
 
 #include    "mips.h"
 #include    "thread.h"
+#include    "time.h"
 
 unsigned long vm0_thread;
 unsigned long thread_size = VM_FRAME_SIZE;
