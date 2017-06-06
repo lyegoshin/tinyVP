@@ -1,0 +1,91 @@
+		tinyVP build process description
+		--------------------------------
+
+tinyVP has a couple of C source files which have the supervisor code itself.
+Additional 2 (currently) files are added by Python3 build scripts during build.
+All configuration bits are put into that files during build process.
+
+File pte.c has the full system memory map trees. It is only root-controlled
+memory map trees, guest can handle it's own memory mapping in any fascion -
+as a tree of different flavors or even a plain pool of TLBs with some logic
+to refill it in hardware TLB array. Root has no control of that but provides
+an appropriate support in HW to handle it properly.
+
+There is an array 'cpt_base' which points to 7 VMs individual trees and root one
+as VM0. Page table tree is more complicated in comparison with Linux one and
+includes terminal branches which are used by SW TLB refill/page failure handler
+to provide an emulated access to individual device registers in tightly packed
+pages. So, it includes link references to an individual device emulators.
+
+VM7 has a special page for LLbit clearing support, so it is present even VM7 is
+absent from configuration file.
+
+Another file ic-tables.c has a couple of tables for Interrupt Controller
+emulation for all VMs. Again, a couple of references to device emulators,
+bit arrays to indicate HW or SW IRQ assignment.
+
+It also has Guest entry point VAs for each guest and some option flags.
+
+Main configuration file (CONFIG=... parameter of 'make' command) has a system
+description. It describes the number of guests and each guest configuration
+and has reference to guest ELF or binary file etc.
+
+MAKE parameter BOARD=... is intended to have all board platform critical
+parameters like tinyVP location, the location of it's data/stack and starting
+points for automatic allocation of code/data guest segments. It should be stable
+for specific board. Actually, make includes the content of $BOARD file from
+
+    boards/
+
+directory.
+
+
+Build process starts with "maps" phase. In this phase a Python script
+
+   build-scripts/vz-map.py
+
+calls
+
+   build-scripts/vzparser.py
+
+and looks into a provided ELF files (indicated in main configuration file)
+to extract segment addresses and sizes and put into ".map" files.
+It uses build-scripts/map-extract.py for this. Only some segments are processed,
+which clearly have code or data in it.
+
+Unfortunately, looking into .ELF file is not enough to determine a dynamic
+segment location and sizes and it is a reason why "maps" phase is separated
+from the real build phase. This separation provides a chance to edit the
+resulted ".map" files and a main configuration file. See README.config.desc
+for details of main configuration file.
+
+The second build phase starts with
+
+    build-scripts/vz-conf.py (which calls build-scripts/vzparser.py too)
+
+and loads a Python library module from
+
+    platforms/
+
+directory for platform specific configuration functions, basing on PLATFORM
+variable taken from boards/$BOARD file by make.
+
+It reads a main configuration file again + ".map" files and creates pte.c and
+ic-tables.c files. After that all addresses and other configuration details
+are carved into 2 C source files. Additionally, it gets ".cmd" files provided with
+guest ELF binary. These files have a shell commands how to convert guest binary
+into .srec file. If guest ELF file is not available (say - guest is in HEX or
+SREC format) then this file has appropriate commands. All files are combined
+into summary ".objcopy" file for last step.
+
+A keyword 'OFFSET' will be replaced by script to memory offset - guest code is
+build to some address X but a build process needs to move it to the real address
+in physical device Y, offset between them is calculated and inserted here.
+
+Now the regular tinyVP build starts with using MIPS GCC toolchain and the result is
+some 'a.out' file. It has a binary of tinyVP with address mappings but has no
+guest binaries.
+
+The last step is an execution of ".objcopy" shell script from previous step.
+It combines all parts together (tinyVP and guests) and converts the result into
+"a.merged.srec" file. This file can be flashed into device.
