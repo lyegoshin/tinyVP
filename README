@@ -116,7 +116,7 @@ for guest2, and print some symbols on console to mark a progress.
 system time. Some input symbols into root are interpreted as some commands.
 
     0.  Ensure these tools are installed on the build machine.
-	 * Python 3 (i.e., Python 3.0 and later)
+	 * Python 2.7.8 - 2.7.X
 	 * SRecord tools (srec_cat, etc.; in package "srecord" on Linux)
 	 * "MIPS Linux "MTI" variant toolchain; available from:
 
