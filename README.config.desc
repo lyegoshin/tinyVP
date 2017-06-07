@@ -66,13 +66,13 @@ file = filename                         - an alternative to "elf", if map values
 
   rom = vaddress size flags ALIGNMENT     - VM guest code section for automatic
 					    allocation by configurator.
-					    See platform description details.
+					    See board config description details.
 					    The last statement in VM description
 					    replaces the previous
 
   ram = vaddress size flags ALIGNMENT     - VM guest data section for automatic
 					    allocation by configurator.
-					    See platform description details.
+					    See board config description details.
 					    The last statement in VM description
 					    replaces the previous
 
@@ -105,10 +105,15 @@ device = devicename                     - include "devicename" description from
 
 -----------------------------------------------------------------------
 
-    Platform file description
+    Board configuration file description
 ==============================================
 
 File should have a couple of key = value(s) lines:
+
+PLATFORM = platformname
+
+    This is a name of Python module in 'platforms' subdirectory.
+    So far, only pic32mz2048efg100 is defined here.
 
 rom = start-physaddress end-physaddress
 ram = start-physaddress end-physaddress

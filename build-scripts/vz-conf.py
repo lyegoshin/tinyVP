@@ -36,6 +36,9 @@ import sys
 import vzparser
 from vzparser import *
 
+import importlib
+import __builtin__
+
 class MyPrettyPrinter(pprint.PrettyPrinter):
     def format(self, object, context, maxlevels, level):
 	if isinstance(object, int):
@@ -51,7 +54,7 @@ CPTE_BLOCK_SIZE_SHIFT = 4
 
 irq_emulator_list = []
 emulator_list = []
-vm7_is_absent = None
+__builtin__.vm7_is_absent = None
 
 KB = 1024
 MB = (1024 * KB)
@@ -65,14 +68,14 @@ basepagesize = 4*KB
 #
 
 def parse_config(filename):
-    global vm7_is_absent
+    #global vm7_is_absent
     vm = parse_config_file(filename, "map")
     #
     #  setup ERET page addresses in VM7 in accordance with platform file definitions
     if 7 in configuration:
 	vm = configuration[7]
     else:
-	vm7_is_absent = 1
+	__builtin__.vm7_is_absent = 1
 	vm = {}
 	vm['id'] = '7'
     mmap = []
@@ -735,10 +738,10 @@ def output_el01(pte, ofile, flag):
     else:
 	print >>ofile, "    { .cpte_dl.f=%s, %s, 0x%0x, 0x%0x }, //\t0x%0x 0x%0x" % (emulator, bitmask, elo0, elo1, pte[4], pte[5])
 
-uniqlblnum = 0
+__builtin__.uniqlblnum = 0
 
 def output_bitmasks(pt, vm, bfile):
-    global uniqlblnum
+    #global uniqlblnum
     ptlist = []
     for idx, pte in enumerate(pt[3]):
 	if type(pte) is not tuple:
@@ -746,8 +749,8 @@ def output_bitmasks(pt, vm, bfile):
 	    continue
 	if pte[7] is None:
 	    continue
-	newlabel = "bm" + str(vm["id"]) + "_" + str(uniqlblnum)
-	uniqlblnum += 1
+	newlabel = "bm" + str(vm["id"]) + "_" + str(__builtin__.uniqlblnum)
+	__builtin__.uniqlblnum += 1
 	print >>bfile, "\nunsigned long const %s[] = {" % (newlabel),
 	for idx2, w in enumerate(pte[7]):
 	    if (idx2 % 8) == 0:
@@ -761,15 +764,15 @@ def output_bitmasks(pt, vm, bfile):
 # output a small PTE tree - tree of "pages" less than 1 page, for emulation goal
 #
 def output_small_ptetree(pt, vm, ofile):
-    global uniqlblnum
+    #global uniqlblnum
     ptlist = []
     for pte in pt[3]:
 	label = ""
 	if type(pte) is not tuple:
 	    label = output_small_ptetree(pte, vm, ofile)
 	ptlist.append((label, pte))
-    newlabel = "vm" + str(vm["id"]) + "_" + str(uniqlblnum) + "_sw"
-    uniqlblnum += 1
+    newlabel = "vm" + str(vm["id"]) + "_" + str(__builtin__.uniqlblnum) + "_sw"
+    __builtin__.uniqlblnum += 1
     print >>ofile, "\nunion cpte const %s[] = { // 0x%08x / 0x%x" % (newlabel,pt[0],pt[1])
     slot = 0
     for label, pte in ptlist:
@@ -798,7 +801,7 @@ def output_small_ptetree(pt, vm, ofile):
     return newlabel
 
 def output_ptetree(pt, vm, ofile):
-    global uniqlblnum
+    #global uniqlblnum
     ptlist = []
     for pte in pt[3]:
 	label = ""
@@ -810,8 +813,8 @@ def output_ptetree(pt, vm, ofile):
 		#
 		label1 = output_small_ptetree(pte, vm, ofile)
 		# output transit element - "stop-point"
-		label = "vm" + str(vm["id"]) + "_" + str(uniqlblnum) + "_tr"
-		uniqlblnum += 1
+		label = "vm" + str(vm["id"]) + "_" + str(__builtin__.uniqlblnum) + "_tr"
+		__builtin__.uniqlblnum += 1
 		maskofaddress = (pt[2] - 1) ^ (pte[1] - 1)
 		goldenaddress = pte[0] & maskofaddress
 		pagemask = (pte[2] - 1)
@@ -827,8 +830,8 @@ def output_ptetree(pt, vm, ofile):
 		ptlist.append((label, pte, 0))
 	else:
 	    ptlist.append((label, pte, 0))
-    newlabel = "vm" + str(vm["id"]) + "_" + str(uniqlblnum)
-    uniqlblnum += 1
+    newlabel = "vm" + str(vm["id"]) + "_" + str(__builtin__.uniqlblnum)
+    __builtin__.uniqlblnum += 1
     print >>ofile, "\nunion cpte const %s[] = { // 0x%08x / 0x%x" % (newlabel,pt[0],pt[1])
     slot = 0
     for label, pte, transit in ptlist:
@@ -878,186 +881,10 @@ def output_tlb_tables(vm, ofile):
     label = output_ptetree(pteroot, vm, ofile)
     return label
 
-def output_irqmask(ofile,irqs):
-    for w in range(0,7):
-	if (w % 2) == 0:
-	    ofile.write("\n\t")
-	ofile.write("0b"),
-	for i in range(31,-1,-1):
-	    irq = w * 32 + i
-	    if irq in irqs:
-		ofile.write("1")
-	    else:
-		ofile.write("0")
-	ofile.write(", ")
 
-def output_ipcmask(ofile,irqs):
-    for w in range(0,54):
-	if (w % 2) == 0:
-	    ofile.write("\n\t")
-	ofile.write("0b"),
-	for i in range(3,-1,-1):
-	    irq = w * 4 + i
-	    if irq in irqs:
-		ofile.write("00011111")
-	    else:
-		ofile.write("00000000")
-	ofile.write(", ")
-
-def output_ic_tables(ofile):
-    global uniqlblnum
-    global vm7_is_absent
-    # output masks words
-    output_emulator_lists(ofile)
-    print >>ofile,"void insert_timer_IRQ(struct exception_frame *exfr);"
-    for vmid in sorted(configuration):
-	# vm0 has no IC emulation
-	if vmid == 0:
-	    continue
-	# skip VM7 IC emulation if VM7 has just ERET page
-	if (vmid == 7) and (vm7_is_absent == 1):
-	    continue
-	vm = configuration[vmid]
-	#mpp = MyPrettyPrinter()
-	#mpp.pprint(vm)
-	#
-	# begin output IRQ masks
-	#
-	irqs = []
-	if "irqlist" in vm:
-	    irqs.extend(vm["irqlist"])
-	newlabel = "vm" + str(vm["id"]) + "_" + str(uniqlblnum)
-	uniqlblnum += 1
-	vm["masklabel"] = newlabel
-	print >>ofile, "\nunsigned int const %s[70] = { // vm%d irqmasks" % (newlabel, vmid),
-	# out IFS
-	output_irqmask(ofile,irqs)
-	print >>ofile, "0,"
-	# out IEC
-	output_irqmask(ofile,irqs)
-	print >>ofile, "0,"
-	output_ipcmask(ofile,irqs)
-	print >>ofile, "\n};"
-	#
-	# begin output IRQ emulation masks
-	#
-	ems = {}
-	if "emlist" in vm:
-	    ems = dict(vm["emlist"])
-	ems[0] = "insert_timer"
-	newlabel = "vm" + str(vm["id"]) + "_" + str(uniqlblnum)
-	uniqlblnum += 1
-	vm["emlabel"] = newlabel
-	print >>ofile, "\nunsigned int const %s[70] = { // vm%d emulator masks" % (newlabel, vmid),
-	# out IFS
-	output_irqmask(ofile,ems)
-	print >>ofile, "\n\t0,"
-	# out IEC
-	output_irqmask(ofile,ems)
-	print >>ofile, "\n\t0,"
-	output_ipcmask(ofile,ems)
-	print >>ofile, "\n};"
-    print >>ofile, "\nunsigned int const * const vm_ic_masks[8] = {"
-    # vm0 has no IC emulation
-    print >>ofile, "\t(void *)0x0,"
-    for vmid in range(1,8):
-	if vmid in configuration:
-	    # skip VM7 IC emulation if VM7 has just ERET page
-	    if (vmid == 7) and (vm7_is_absent == 1):
-		continue
-	    vm = configuration[vmid]
-	    print >>ofile, "\t&%s[0]," % (vm["masklabel"])
-	else:
-	    print >>ofile, "\t(void *)0x0,"
-    print >>ofile, "};"
-    print >>ofile, "\nunsigned int const * const vm_ic_emulators[8] = {"
-    # vm0 has no IC emulation
-    print >>ofile, "\t(void *)0x0,"
-    for vmid in range(1,8):
-	if vmid in configuration:
-	    # skip VM7 IC emulation if VM7 has just ERET page
-	    if (vmid == 7) and (vm7_is_absent == 1):
-		continue
-	    vm = configuration[vmid]
-	    print >>ofile, "\t&%s[0]," % (vm["emlabel"])
-	else:
-	    print >>ofile, "\t(void *)0x0,"
-    print >>ofile, "};"
-    # irq2vm
-    print >>ofile, "\nunsigned char const irq2vm[216] = {"
-    for irq in range(0,216):
-	if (irq % 16) == 0:
-	    print >>ofile, "\n\t",
-	for vmid in configuration:
-	    vm = configuration[vmid]
-	    if ("irqlist" in vm) and (irq in vm["irqlist"]):
-		# print "vm", vmid, "irqlist", vm["irqlist"]
-		print >>ofile, "%d, " % (vmid),
-		break
-	else:
-	    print >>ofile, "0, ",
-    print >>ofile, "\n};"
-    # irq2emulator
-    print >>ofile, "\nemulator_irq * const irq2emulator[216] = {"
-    for irq in range(0,216):
-	if (irq % 4) == 0:
-	    print >>ofile, "\n\t",
-	for vmid in configuration:
-	    vm = configuration[vmid]
-	    if ("emlist" in vm) and (irq in vm["emlist"]):
-		emlist = vm["emlist"]
-		print >>ofile, "&%s_irq," % (emlist[irq]),
-		break
-	else:
-	    print >>ofile, "(void*)0, ",
-    print >>ofile, "\n};"
-    # irq2emulator_ic_write
-    print >>ofile, "\nemulator_ic_write * const irq2emulator_ic_write[216] = {"
-    print >>ofile, "\n\t(emulator_ic_write *)&insert_timer_IRQ,",
-    for irq in range(1,216):
-	if (irq % 4) == 0:
-	    print >>ofile, "\n\t",
-	for vmid in configuration:
-	    vm = configuration[vmid]
-	    if ("emlist" in vm) and (irq in vm["emlist"]):
-		emlist = vm["emlist"]
-		print >>ofile, "&%s_ic," % (emlist[irq]),
-		break
-	else:
-	    print >>ofile, "(void*)0, ",
-    print >>ofile, "\n};"
-    # output the scheduler VM list
-    print >>ofile, "\nint const vm_list[8] = { ",
-    print >>ofile, "0,",
-    for vmid in range(1,8):
-	if vmid in configuration:
-	    if (vmid == 7) and (vm7_is_absent == 1):
-		print >>ofile, "0,",
-	    else:
-		vm = configuration[vmid]
-		if "entry" not in vm:
-		    print "Missed 'entry' option in vm%s" % (vmid)
-		    exit()
-		print >>ofile, "%s," % (vm["entry"]),
-	else:
-	    print >>ofile, "0,",
-    print >>ofile, " };"
-    # output VM options
-    print >>ofile, "\nint const vm_options[8] = { ",
-    print >>ofile, "0,",
-    for vmid in range(1,8):
-	if vmid in configuration:
-	    vm = configuration[vmid]
-	    if ("irqpolling" not in vm) or (vm["irqpolling"] == 0):
-		print >>ofile, "0,",
-	    else:
-		print >>ofile, "1,",
-	else:
-	    print >>ofile, "0,",
-    print >>ofile, " };"
-
-
-parse_platform(sys.argv[1])
+sys.path.append("platforms")
+platform = importlib.import_module(sys.argv[3])
+parse_board("boards/" + sys.argv[1])
 parse_devicelib("device.lib")
 parse_config(sys.argv[2])
 
@@ -1139,4 +966,6 @@ ofile = open("ic-tables.c","w")
 print >>ofile, '#include "ic.h"'
 print >>ofile, '#include "tlb.h"'
 print >>ofile, '#include "irq.h"'
-output_ic_tables(ofile)
+output_emulator_lists(ofile)
+platform.output_ic_tables(configuration,ofile)
+

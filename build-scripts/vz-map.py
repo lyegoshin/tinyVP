@@ -21,7 +21,7 @@ class MyPrettyPrinter(pprint.PrettyPrinter):
 def parse_config(filename):
     vm = parse_config_file(filename, "map")
 
-parse_platform(sys.argv[1])
+parse_board("boards/" + sys.argv[1])
 parse_devicelib("device.lib")
 parse_config(sys.argv[2])
 #mpp2 = MyPrettyPrinter()

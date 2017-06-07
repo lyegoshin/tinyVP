@@ -1,4 +1,4 @@
-include $(PLATFORM)
+include boards/$(BOARD)
 
 SOURCE = main.c uart.c printf.c ic.c log.c strlen.c time.c exception.c \
 	branch.c tlb.c tty.c eic.c console.c scheduler.c
@@ -6,10 +6,10 @@ SOURCE = main.c uart.c printf.c ic.c log.c strlen.c time.c exception.c \
 GENERATED_SOURCE = pte.c ic-tables.c
 
 maps:
-	build-scripts/vz-map.py $(PLATFORM) $(CONFIG)
+	build-scripts/vz-map.py $(BOARD) $(CONFIG)
 
 build:  $(SOURCE)
-	build-scripts/vz-conf.py $(PLATFORM) $(CONFIG)
+	build-scripts/vz-conf.py $(BOARD) $(CONFIG) $(PLATFORM)
 	mips-mti-linux-gnu-gcc -O2 \
 		-DSTACKTOP=$(vzstacktop) -Deret_page=$(eret_page) \
 		-membedded-data -G4096 -mgpopt -march=mips32r2 -msoft-float \

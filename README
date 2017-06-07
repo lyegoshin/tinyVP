@@ -129,14 +129,14 @@ system time. Some input symbols into root are interpreted as some commands.
 
     2.  Extract segment maps and sizes from Guest ELF binaries, into .map files
 
-	    make maps PLATFORM=pic32mzef.platform CONFIG=config.file
+	    make maps BOARD=DigilentChipKitWiFire CONFIG=config.file
 
 	Actual RAM requirements are already put into config.file because size
 	can't be extracted from ELF binary. But code size is reliable.
 
     3.  Build the single .SREC file with tinyVP + guests
 
-	    make build PLATFORM=pic32mzef.platform CONFIG=config.file
+	    make build BOARD=DigilentChipKitWiFire CONFIG=config.file
 
 	You can start a repeated build from this point if you change tinyVP only
 

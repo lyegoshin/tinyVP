@@ -333,7 +333,7 @@ def parse_config_file(filename, extension):
     f.close()
     return vm
 
-def parse_platform(arg):
+def parse_board(arg):
     global romaddress, romend, ramaddress, ramend, eretpage, vzcode, vzentry, vzdata, vzstacktop
     f = open(arg)
     for line in f:
