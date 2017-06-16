@@ -1,0 +1,14 @@
+.vm
+    id = 1
+    irqpolling = 1
+    elf = pic32mz-DM320007/uart.elf
+    .mmap
+	code = 0x1fc08000 0x8000 rxds 0x1fc08000
+	ram = 0     0x10000 rw 0x1000
+    .
+    device = ic
+    device = console1
+    device = ports
+    device = syscontroller
+    device = oscillator
+.

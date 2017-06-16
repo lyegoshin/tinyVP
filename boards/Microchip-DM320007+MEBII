@@ -1,0 +1,12 @@
+PLATFORM = pic32mz2048efg100
+BOOT = boot.S
+rom = 0x1d010000 0x1D200000
+ram = 0          0x78000
+eret_page = 0x9ffff000
+vzcode  =   0x9FC00000
+vzentry =   0x9FC00000
+vzdata =    0x80078000
+vzstacktop  =   0x80080000
+DEVCFG = boards/Microchip-DM320007+MEBII-DEVCFG.S
+DEVCFGADDR = 0x9FC0FFC0
+BOARDINIT = boards/Microchip-DM320007+MEBII-init.S
