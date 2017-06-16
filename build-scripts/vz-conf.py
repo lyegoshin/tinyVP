@@ -927,7 +927,7 @@ flname = sys.argv[2] + '.objcopy'
 fl = open(flname, "w")
 for line in objcopy:
     print >>fl, line,
-print >>fl, "srec_cat a.out.srec",
+print >>fl, "srec_cat a.out.srec devcfg.srec",
 for vmid in configuration:
     vm = configuration[vmid]
     if "file" in vm:

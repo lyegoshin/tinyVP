@@ -115,6 +115,33 @@ PLATFORM = platformname
     This is a name of Python module in 'platforms' subdirectory.
     So far, only pic32mz2048efg100 is defined here.
 
+BOOT = bootloaderfilename
+
+    This is a file with bootloader source code. So far - 'boot.S'
+    If it is empty, it means that bootloader is not included and
+    board initialization at BFC00000 address must be done some external code.
+    Of course, some way to jump to tinyVP start address must be provided
+    in that boot initalization code. Besides Digilent ChipKit WiFire board
+    all boards haven't a tested bootloader, so it should be specified here.
+    Specification it for Digilent board is possible but for now you lose
+    a flash over serial capability after that.
+
+DEVCFG = boards/boardEFUSEinitialization-module-source-code
+DEVCFGADDR = 0x9FC0FFC0
+
+    This is a way to define PIC32MZEF EFUSE board configurations (master clock
+    parameters, EJTAG availability, flash protection etc). Without that magic
+    4 word a pic32prog can't flash BOOT code into BFC00000.
+	It is recommended to take one of example. Address is predefined in
+    PIC32MZEF SoC chip.
+
+BOARDINIT = boards/boardinitsourcecodefilename
+
+    This is a module which is used for board initialization (pin/port routing,
+    some perfipheral clocks setup, LED initialization etc).
+	It also contains the simple board-dependent functions which may indicate
+    a boot progress/boot failure via LEDs, for exam.
+
 rom = start-physaddress end-physaddress
 ram = start-physaddress end-physaddress
 
@@ -139,13 +166,14 @@ eret_page = 0x9ffff000
     during guest reschedule. It is needed because of Config5.LLB is not
     implemented in M5150 (MIPS core of PIC32MZEF)
 
-vzcode  =   0x9D000000
+vzcode  =   0x9D000000 or 9FC00000
 
-    Start address of tinyVP code
+    Start address of tinyVP code. 9FC00000 should be chosen for bootloader
+    provided with tinyVP.
 
 vzentry =   0x9D001000
 
-    Entry point of tinyVP after boot
+    Entry point of tinyVP after boot. It has no meaning for tinyVP bootloader.
 
 vzdata =    0x80078000
 

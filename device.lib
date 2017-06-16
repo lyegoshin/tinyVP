@@ -9,6 +9,26 @@
 .
 
 .device
+    name = console1
+    irq= 112 113 114
+    share = 1
+    emulator = console
+    regs =
+	0x1f822000 0x100 erw
+    .
+.
+
+.device
+    name = console2
+    irq= 145 146 147
+    share = 1
+    emulator = console
+    regs =
+	0x1f822200 0x100 erw
+    .
+.
+
+.device
     name = uart1
     irq= 112 113 114
     regs =

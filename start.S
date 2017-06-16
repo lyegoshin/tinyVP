@@ -24,15 +24,22 @@
 #include    "mipsasm.h"
 
 .section .text.init, "ax"
-/*
- * Data for bootloader.
- */
 	.set    virt
 
 	.set    push
 	.set    noreorder
 	.set    noat
-	.org    0x0
+
+//
+//                  tinyVP starts here
+//
+
+	// set to page alignment for exception vector
+
+	.align  12
+	.set BOOTOFFSET, .
+	.org    BOOTOFFSET + 0x0
+
 .type TLB_refill, @function
 	.globl  TLB_refill
 TLB_refill:
@@ -113,17 +120,23 @@ bad_area:
 	 mfc0   t3, CP0_KSCR1
 
 // ================= PIC32MZEF bootloader required data ====================
-	.org    0xf8
+	.org    BOOTOFFSET + 0xf8
 	.type   _ebase, @object
+.globl  _ebase
 _ebase:
-	.word   EBASE                           # EBase value
+	.word   TLB_refill                      # EBase value
 
 	.type   _imgptr, @object
-	.org    0xfc
+	.org    BOOTOFFSET + 0xfc
 _imgptr:
 	.word   -1                              # Image header pointer
 
 // ==================================================
+
+	.org    BOOTOFFSET + 0x100
+cacheerr:
+	b       cacheerr
+	 nop
 
 .type wait, @function
 	.globl  wait
@@ -161,7 +174,7 @@ wait:
 
 // ==================================================
 
-	.org    0x180
+	.org    BOOTOFFSET + 0x180
 EXC_entry:
 	mfc0    k0, CP0_CONTEXT
 	bltz    k0, EXC_wait_entry  // Idle mode
@@ -208,7 +221,7 @@ _bzero:
 
 // =================================================
 
-	.org    0x200
+	.org    BOOTOFFSET + 0x200
 IRQ_entry:
 	mfc0    k0, CP0_CONTEXT
 	bltz    k0, IRQ_wait_entry  // Idle mode
@@ -217,8 +230,22 @@ IRQ_entry:
 	bltz    k1, IRQ_wait_entry  // Guest mode
 	 nop
 
-// Long way: non-Guest, thread mode (kernel or user)
+#if (BOOTOFFSET != 0)
+	b       IRQ_entry_continue
+	 mfc0    k1, CP0_STATUS
+
+// =================================================
+
+	.org    BOOTOFFSET + 0x280
+	deret
+
+// =================================================
+
+IRQ_entry_continue:
+#else
 	mfc0    k1, CP0_STATUS
+#endif
+// Long way: non-Guest, thread mode (kernel or user)
 	sll     k1, 3               // Status.CU0
 	bltz    k1, 1f
 	 move   k1, sp              // kernel thread, keep SP
@@ -700,7 +727,7 @@ _clear_g_ll_cont:
 // ==============================================
 
 .type __start, @function
-.org    0x1000
+.org    BOOTOFFSET + 0x1000
 .globl __start
 __start:
 .set push
@@ -734,6 +761,12 @@ __start:
 	ehb
 	addiu $9, $9, -1
 	bgez  $9, 1b
+	 nop
+
+//
+//  Start board specific initialization
+//
+	jal     _board_init
 	 nop
 
 	// copy data secion
@@ -776,4 +809,3 @@ __start:
 	la    $25, __main
 	jr    $25
 	 nop
-

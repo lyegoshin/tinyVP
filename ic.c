@@ -328,11 +328,21 @@ unsigned char str[128];
 		time_irq(exfr, irq);
 		return;
 
+	case _UART1_IRQ_TX:
+	case _UART2_IRQ_TX:
+	case _UART3_IRQ_TX:
 	case _UART4_IRQ_TX:
+	case _UART5_IRQ_TX:
+	case _UART6_IRQ_TX:
 		uart_tx_irq(irq);
 		return;
 
+	case _UART1_IRQ_RX:
+	case _UART2_IRQ_RX:
+	case _UART3_IRQ_RX:
 	case _UART4_IRQ_RX:
+	case _UART5_IRQ_RX:
+	case _UART6_IRQ_RX:
 		uart_rx_irq(exfr, irq);
 		return;
 	}
@@ -353,6 +363,7 @@ void init_IRQ(void)
 	volatile unsigned int *priss;
 	volatile unsigned int *ipc;
 	unsigned int ipc_mask, bit_shift;
+	extern void _ebase();
 unsigned char str[128];
 
 	*IC_INTCON = IC_INTCON_INIT;
@@ -375,14 +386,14 @@ uart_writeline(console_uart, str);
 		*(ipc) |= (0x8 << bit_shift);
 	}
 
-	set_cp0_status(CP0_STATUS_BEV);
+	i = set_cp0_status(CP0_STATUS_BEV);
 	ehb();
-	write_cp0_ebase(EBASE);
+	write_cp0_ebase((unsigned long)_ebase);
 	ehb();
 	set_cp0_cause(CP0_CAUSE_IV);
 	write_cp0_intctl(CP0_INTCTL_INIT);
 	ehb();
-	clear_cp0_status(CP0_STATUS_BEV);
+	set_cp0_status(i);
 	ehb();
 
 sprintf(str, "init_IRQ: EBase=0x%08x\n", read_cp0_ebase());

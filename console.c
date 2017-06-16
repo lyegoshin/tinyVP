@@ -25,6 +25,7 @@
 #include    "uart.h"
 #include    "tlb.h"
 #include    "irq.h"
+#include    "console.h"
 
 #define     MAX_INPUT_BUFFER_SIZE   8
 
@@ -33,7 +34,6 @@
 
 unsigned int console_reg_sta[MAX_NUM_GUEST + 1];
 unsigned int console_reg_mode[MAX_NUM_GUEST + 1];
-unsigned short console_irq_rx;
 unsigned char console_rx_vmid;
 unsigned char console_esc;
 unsigned char console_buffer[MAX_NUM_GUEST + 1][MAX_INPUT_BUFFER_SIZE];

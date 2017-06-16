@@ -25,6 +25,7 @@
 #include    "irq.h"
 #include    "uart.h"
 #include    "log.h"
+#include    "console.h"
 
 int uart_writechar(struct uart_device *uad, unsigned char c)
 {

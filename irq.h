@@ -36,10 +36,6 @@ void    irq_mask_and_ack(unsigned irq);
 void    do_IRQ(struct exception_frame *exfr);
 void    init_IRQ(void);
 
-extern  struct uart_device *console_uart;
-extern  unsigned short console_irq_tx;
-extern  unsigned short console_irq_rx;
-
 typedef unsigned int (emulator_irq)(struct exception_frame *exfr, unsigned int irq,
 				     unsigned int ipl);
 typedef unsigned int (emulator_ic_write)(struct exception_frame *exfr,

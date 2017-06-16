@@ -24,7 +24,7 @@
 #ifndef _MIPSASM_H
 #define _MIPSASM_H
 
-#define EBASE                       0x9D000000
+// #define EBASE                       0x9D000000
 #define STACK_SIZE_MASK             0x1FFF
 #define MAX_NUM_GUEST               7
 #define VMID_ERET                   (7 | (7 << 16))   // use VM7 for LLbit cleaning
@@ -65,12 +65,18 @@
 #define fp      $30
 #define ra      $31
 
+#define CP0_INDEX               $0
+
 #define CP0_CONTEXT             $4
 // #define CP0_CONTEXT_WAITFLAG    0x80000000
 #define CP0_CONTEXT_VPN_SHIFT   (9)
 #define CP0_CONTEXT_VM_SHIFT    (23)
 
+#define CP0_WIRED               $6
+
 #define CP0_COUNT               $9, 0
+
+#define CP0_COMPARE             $11
 
 #define CP0_STATUS              $12
 #define CP0_STATUS_CU0          0x10000000
@@ -164,6 +170,22 @@
 #define CP0_BADINSTP            $8, 2
 #define CP0_NESTED_EXC          $13, 5
 #define CP0_NESTED_EPC          $14, 2
+
+#define CP0_CONFIG              $16
+#define CP0_CONFIG1             $16,1
+#define CP0_CONFIG2             $16,2
+#define CP0_CONFIG7             $16,7
+
+#define CP0_WATCH_LO            $18
+#define CP0_WATCH_HI            $19
+
+#define CP0_ITAG_LO             $28
+#define CP0_DTAG_LO             $28, 2
+#define CP0_L23TAG_LO           $28, 4
+
+#define CP0_ITAG_HI             $29
+#define CP0_DTAG_HI             $29, 2
+#define CP0_L23TAG_HI           $29, 4
 
 // =====================================
 

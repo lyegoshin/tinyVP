@@ -61,17 +61,27 @@ struct uart_device {
 #define UART_STA_URXDA                  0x0001
 
 /* console */
+#define _UART1_IRQ_RX                   113
+#define _UART1_IRQ_TX                   114
+#define _UART2_IRQ_RX                   146
+#define _UART2_IRQ_TX                   147
+#define _UART3_IRQ_RX                   158
+#define _UART3_IRQ_TX                   159
 #define _UART4_IRQ_RX                   171
 #define _UART4_IRQ_TX                   172
-#define _UART4ADDR                      0xbf822600
-#define _UART4PADDR                     0x1f822600
+#define _UART5_IRQ_RX                   180
+#define _UART5_IRQ_TX                   181
+#define _UART6_IRQ_RX                   189
+#define _UART6_IRQ_TX                   190
+//#define _UART4ADDR                      0xbf822600
+//#define _UART4PADDR                     0x1f822600
 
-int uart_init(struct uart_device *uad);
-int uart_writeline(struct uart_device *uad, unsigned char *l);
-int uart_write(struct uart_device *uad, unsigned char *l, unsigned len);
-unsigned int uart_readchar(struct uart_device *uad);
+int uart_init(struct uart_device *const uad);
+int uart_writeline(struct uart_device *const uad, unsigned char *l);
+int uart_write(struct uart_device *const uad, unsigned char *l, unsigned len);
+unsigned int uart_readchar(struct uart_device *const uad);
 
-extern struct uart_device *console_uart;
-extern unsigned long console_paddr;
+extern struct uart_device *const console_uart;
+extern unsigned long const console_paddr;
 
 #endif

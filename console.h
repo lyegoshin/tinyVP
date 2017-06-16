@@ -24,7 +24,8 @@
 #ifndef _CONSOLE_H
 #define _CONSOLE_H
 
-extern unsigned short console_irq_rx;
+extern unsigned short const console_irq_rx;
+extern unsigned short const console_irq_tx;
 #define _CONSOLE_PRIO   0x1F
 
 #endif
