@@ -1,4 +1,4 @@
-tinyVP - tiny embedded MIPS virtualization platform, v0.95
+tinyVP - tiny embedded MIPS virtualization platform, v0.96
 ===========================================================
 
   tinyVP is a very small and lean hypervisor using MIPS R5 hardware VZ option
@@ -10,7 +10,8 @@ baremetal without (I hope) any modification. Para-virtualized devices are not
 needed but can be added if needed in future.
 
   It requires VZ option and so far runs on PIC32MZ-EF SoC based on MIPS M5150
-CPU, and tested on Digilent chipKIT WiFire board.
+CPU, and tested on Digilent chipKIT WiFire board, Microchip DM320007 and Olimex
+PIC32-EMZ64.
   It can be adopted to another VZ-compatible core (Baikal-T1/P5600, for example)
 or ported to newest MIPS R6 architecture.
 
@@ -194,3 +195,24 @@ Note: to switch a test to another board you may need to modify and build guests
 which are designed to run with Digilent board LEDs, see an appropriate
 directories. tinyVP itself has no any attachment to board specific besides
 using UART4 as a console, only PIC32MZ-EF SoC is needed.
+
+Note2: You can try two another boards with:
+
+	Microchip DM320007 (+ MEB-II aka Multimedia Extension Board II):
+
+	    guest:  pic32mz-DM320007
+	    make:   CONFIG=config-Microchip-DM320007+MEBII.file
+		    BOARD=Microchip-DM320007+MEBII
+
+	Olimex PIC32-EMZ64:
+
+	    guest:  pic32mz-Olimex
+	    make:   CONFIG=config-OlimexPic32EMZ64.file
+		    BOARD=OlimexPic32EMZ64
+
+
+Contact
+===================================================================
+
+    lyegoshin (at gmail)
+

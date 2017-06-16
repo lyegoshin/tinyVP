@@ -1,3 +1,21 @@
+6/16/17:    Release 0.96
+
+    - New build framework for different platforms and different boards
+      Board-dependent initalization and console definition is now located
+      in separate files. Python build scripts have now a library of platforms
+      to do a platform-dependent stuff in a separate module.
+
+    - A simple bootloader is written into a separate file. It can be used
+      instead of board 0xBFC00000 bootloader. It just initializes CPU/caches/etc
+      and jumps to tinyVP initialization.
+
+    - Microchip DM320007 board support and test guest
+
+    - Olimex PIC32-EMZ64 board support and test guest
+
+    - pic32prog is update to latest release
+
+
 5/25/17:    Release 0.95
 
 After testing with MyNewT RTOS from Runtime.io a couple of bugfixes:
