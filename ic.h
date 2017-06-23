@@ -25,6 +25,7 @@
 #define _IC_H
 
 #include    "mipsasm.h"
+#include    <include/asm/pic32mz.h>
 //#include    "thread.h"
 
 // CLR,SET,INV offsets in words
@@ -38,7 +39,7 @@
 // WRT,CLR,SET,INV address mask
 #define     IC_CSI_MASK             0xf
 
-#define     IC_BASE                 0x1F810000
+#define     IC_BASE                 KPHYS(INTCON) // 0x1F810000
 #define     IC_PTR                  KSEG1(IC_BASE)
 #define     IC_IFS_BASE_OFFSET      (0x40)
 #define     IC_IFS_BASE             (IC_BASE + 0x40)

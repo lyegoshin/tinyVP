@@ -1,3 +1,6 @@
+#include    "mipsasm.h"
+#include    <include/asm/pic32mz.h>
+
 .section .text.init, "ax"
 .type _board_init, @function
 .type _board_init_end, @function
@@ -15,16 +18,16 @@ _board_init_end:
 .type console_uart, @object
 .globl  console_uart
 console_uart:
-	.word   0xbf822600
+	.word   U4MODE
 .type console_paddr, @object
 .globl  console_paddr
 console_paddr:
-	.word   0x1f822600
+	.word   KPHYS(U4MODE)
 .type console_irq_rx, @object
 .globl  console_irq_rx
 console_irq_rx:
-	.short  171
+	.short  PIC32_IRQ_U4RX
 .type console_irq_tx, @object
 .globl  console_irq_tx
 console_irq_tx:
-	.short  172
+	.short  PIC32_IRQ_U4TX

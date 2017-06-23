@@ -49,32 +49,32 @@ struct uart_device {
 
 #define UART_BRG_CLOCK_RATIO_115209     53
 
-#define UART_MODE_ENABLE                0x8000
-#define UART_MODE_WAKEUP_ON_START       0x0080
-#define UART_MODE_STSEL_2STOPBIT        0x0001
+#define UART_MODE_ENABLE                PIC32_UMODE_ON
+#define UART_MODE_WAKEUP_ON_START       PIC32_UMODE_WAKE
+#define UART_MODE_STSEL_2STOPBIT        PIC32_UMODE_STSEL
 
-#define UART_STA_TXMODE_TXBEMPTY        0x4000
-#define UART_STA_RXENA                  0x1000
-#define UART_STA_TXENA                  0x0400
-#define UART_STA_UTXBF                  0x0200
-#define UART_STA_TRMT                   0x0100
-#define UART_STA_URXDA                  0x0001
+#define UART_STA_TXMODE_TXBEMPTY        PIC32_USTA_UTXISEL_ALL
+#define UART_STA_RXENA                  PIC32_USTA_URXEN
+#define UART_STA_TXENA                  PIC32_USTA_UTXEN
+#define UART_STA_UTXBF                  PIC32_USTA_UTXBF
+#define UART_STA_TRMT                   PIC32_USTA_TRMT
+#define UART_STA_URXDA                  PIC32_USTA_URXDA
 
 /* console */
-#define _UART1_IRQ_RX                   113
-#define _UART1_IRQ_TX                   114
-#define _UART2_IRQ_RX                   146
-#define _UART2_IRQ_TX                   147
-#define _UART3_IRQ_RX                   158
-#define _UART3_IRQ_TX                   159
-#define _UART4_IRQ_RX                   171
-#define _UART4_IRQ_TX                   172
-#define _UART5_IRQ_RX                   180
-#define _UART5_IRQ_TX                   181
-#define _UART6_IRQ_RX                   189
-#define _UART6_IRQ_TX                   190
-//#define _UART4ADDR                      0xbf822600
-//#define _UART4PADDR                     0x1f822600
+#define _UART1_IRQ_RX                   PIC32_IRQ_U1RX // 113
+#define _UART1_IRQ_TX                   PIC32_IRQ_U1TX // 114
+#define _UART2_IRQ_RX                   PIC32_IRQ_U2RX // 146
+#define _UART2_IRQ_TX                   PIC32_IRQ_U2TX // 147
+#define _UART3_IRQ_RX                   PIC32_IRQ_U3RX // 158
+#define _UART3_IRQ_TX                   PIC32_IRQ_U3TX // 159
+#define _UART4_IRQ_RX                   PIC32_IRQ_U4RX // 171
+#define _UART4_IRQ_TX                   PIC32_IRQ_U4TX // 172
+#define _UART5_IRQ_RX                   PIC32_IRQ_U5RX // 180
+#define _UART5_IRQ_TX                   PIC32_IRQ_U5TX // 181
+#define _UART6_IRQ_RX                   PIC32_IRQ_U6RX // 189
+#define _UART6_IRQ_TX                   PIC32_IRQ_U6TX // 190
+//#define _UART4ADDR                      U1MODE
+//#define _UART4PADDR                     KPHYS(U1MODE)
 
 int uart_init(struct uart_device *const uad);
 int uart_writeline(struct uart_device *const uad, unsigned char *l);

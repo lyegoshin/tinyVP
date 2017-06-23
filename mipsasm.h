@@ -222,9 +222,12 @@
 #define SHORT_INTERRUPT_FRAME               (PTR_GPR)
 #define FULL_INTERRUPT_FRAME_SIZE           (PTR_FPR)
 
-#define KSEG0END            (0x9FFFF000)
+#ifdef __ASSEMBLER__
+#define KSEG1(x)            (x | 0xA0000000)
+#define KPHYS(x)            (x & 0x1FFFFFFF)
+#else
 #define KSEG1(x)            (volatile unsigned int *)(x | 0xA0000000)
 #define KPHYS(x)            ((unsigned long)x & 0x1FFFFFFF)
-
+#endif
 
 #endif
