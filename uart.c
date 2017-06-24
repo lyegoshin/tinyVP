@@ -27,7 +27,7 @@
 #include    "log.h"
 #include    "console.h"
 
-int uart_writechar(struct uart_device *uad, unsigned char c)
+int uart_writechar(volatile struct uart_device *uad, unsigned char c)
 {
 	while (uad->UxSTA & UART_STA_UTXBF) ;
 	uad->UxTXREG = c;
@@ -35,7 +35,7 @@ int uart_writechar(struct uart_device *uad, unsigned char c)
 	return 1;
 }
 
-int uart_writeline(struct uart_device *uad, unsigned char *l)
+int uart_writeline(volatile struct uart_device *uad, unsigned char *l)
 {
 	unsigned int ie;
 
@@ -50,7 +50,7 @@ int uart_writeline(struct uart_device *uad, unsigned char *l)
 	return(1);
 }
 
-int uart_write(struct uart_device *uad, unsigned char *l, unsigned len)
+int uart_write(volatile struct uart_device *uad, unsigned char *l, unsigned len)
 {
 	unsigned int ie;
 
@@ -62,14 +62,14 @@ int uart_write(struct uart_device *uad, unsigned char *l, unsigned len)
 	return(1);
 }
 
-unsigned int uart_readchar(struct uart_device *uad)
+unsigned int uart_readchar(volatile struct uart_device *uad)
 {
 	while ( !(uad->UxSTA & UART_STA_URXDA) ) ;
 
 	return(uad->UxRXREG);
 }
 
-static int uart_sendchar(struct uart_device *uad, unsigned char c)
+static int uart_sendchar(volatile struct uart_device *uad, unsigned char c)
 {
 	if (uad->UxSTA & UART_STA_UTXBF)
 		return 0;
@@ -78,7 +78,7 @@ static int uart_sendchar(struct uart_device *uad, unsigned char c)
 	return 1;
 }
 
-static int uart_sendlog(struct uart_device *uad)
+static int uart_sendlog(volatile struct uart_device *uad)
 {
 	unsigned char *pc;
 	unsigned char c;
@@ -124,7 +124,7 @@ int uart_tx_irq(unsigned int irq)
 int uart_rx_irq(struct exception_frame *exfr, unsigned int irq)
 {
 	unsigned int value;
-	struct uart_device *uad;
+	volatile struct uart_device *uad;
 
 	if (irq != console_irq_rx)
 		return(0);
@@ -140,7 +140,7 @@ int uart_rx_irq(struct exception_frame *exfr, unsigned int irq)
 	return(1);
 }
 
-int uart_init(struct uart_device *uad)
+int uart_init(volatile struct uart_device *uad)
 {
 	uad->UxBRG  =   UART_BRG_CLOCK_RATIO_115209;
 	uad->UxMODE =   UART_MODE_ENABLE|UART_MODE_WAKEUP_ON_START|

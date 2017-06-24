@@ -76,12 +76,12 @@ struct uart_device {
 //#define _UART4ADDR                      U1MODE
 //#define _UART4PADDR                     KPHYS(U1MODE)
 
-int uart_init(struct uart_device *const uad);
-int uart_writeline(struct uart_device *const uad, unsigned char *l);
-int uart_write(struct uart_device *const uad, unsigned char *l, unsigned len);
-unsigned int uart_readchar(struct uart_device *const uad);
+int uart_init(volatile struct uart_device *const uad);
+int uart_writeline(volatile struct uart_device *const uad, unsigned char *l);
+int uart_write(volatile struct uart_device *const uad, unsigned char *l, unsigned len);
+unsigned int uart_readchar(volatile struct uart_device *const uad);
 
-extern struct uart_device *const console_uart;
+extern volatile struct uart_device *const console_uart;
 extern unsigned long const console_paddr;
 
 #endif
