@@ -121,17 +121,17 @@ def parse_devicelib(filename):
 	    device = parse_device(f)
 	    if device == None:
 		print "1 Configuration library error, last device has no '.', file", f.name
-		exit()
+		exit(1)
 	    if "name" in device:
 		devicename = device["name"]
 	    else:
 		print "2 Configuration library error, device name is absent, file", f.name
-		exit()
+		exit(1)
 	    device_lib[devicename] = device
 	    device = {}
 	else:
 	    print "3 Configuration library file parse error, line ", lline
-	    exit()
+	    exit(1)
     f.close()
     return
 
@@ -218,10 +218,10 @@ def parse_mmap(f, mmap):
 		mmap.extend(regblock)
 		continue
 	    print "4 Configuration file parse error, line ", lline
-	    exit()
+	    exit(1)
     return mmap
 
-def parse_vm(f, vm, extension):
+def parse_vm(f, vm, stage):
     for line in f:
 	# First, remove comments:
 	lline = line
@@ -242,22 +242,22 @@ def parse_vm(f, vm, extension):
 			vm["device"] = [device,]
 		else:
 		    print "5 Configuration file error, device absent in library", lline
-		    exit()
+		    exit(1)
 	    elif key == "entry":
 		if "entry" not in vm:
 		    vm["entry"] = value
 	    elif key == "elf":
 		if "file" in vm:
 		    print "101 Configuration file parse error - duplicate 'elf/'binary', line ", lline
-		    exit()
+		    exit(1)
 		# start extracting mmap from ELF
-		filename = os.path.splitext(value)[0]+'.'+extension
+		filename = os.path.splitext(value)[0]+".map"
 		# in 1st step ("map") map files are created unconditionally
-		if (extension == "map") or not os.path.isfile(filename):
+		if (stage == "map") or not os.path.isfile(filename):
 		    status = os.system("build-scripts/map-extract.py" + " " + value)
 		    if status != 0:
 			print "build-scripts/map-extract.py returns status",status
-			exit()
+			exit(1)
 		else:
 		    binstatinfo = os.stat(value)
 		    mapstatinfo = os.stat(filename)
@@ -265,9 +265,9 @@ def parse_vm(f, vm, extension):
 			status = os.system("build-scripts/map-extract.py" + " " + value)
 			if status != 0:
 			    print "build-scripts/map-extract.py returns status",status
-			    exit()
+			    exit(1)
 		fl = open(filename)
-		vm = parse_vm(fl, vm, extension)
+		vm = parse_vm(fl, vm, stage)
 		fl.close()
 		vm["elf"] = value
 		vm["file"] = value
@@ -275,7 +275,7 @@ def parse_vm(f, vm, extension):
 		# just reference to binary file, map is written manually/in configuration file
 		if "file" in vm:
 		    print "102 Configuration file parse error - duplicate 'elf/'binary', line ", lline
-		    exit()
+		    exit(1)
 		vm["file"] = value
 	    else:
 		vm[key] = value
@@ -301,11 +301,11 @@ def parse_vm(f, vm, extension):
 		#    eirqs = parse_eirq(f)
 		else:
 		    print "6 Configuration file parse error, line ", lline
-		    exit()
+		    exit(1)
     f.close()
     return vm
 
-def parse_config_file(filename, extension):
+def parse_config_file(filename, stage):
     vmid = "0"
     vm = {}
     f = open(filename)
@@ -320,16 +320,16 @@ def parse_config_file(filename, extension):
 	    continue
 	if line == ".vm":
 	    vm = {}
-	    vm = parse_vm(f, vm, extension)
+	    vm = parse_vm(f, vm, stage)
 	    try:
 		vmid = vm['id']
 	    except:
 		print "7 Configuration file error, vm has no id",
-		exit()
+		exit(1)
 	    configuration[int(vmid)] = vm
 	else:
 	    print "8 Configuration file parse error, line ", lline
-	    exit()
+	    exit(1)
     f.close()
     return vm
 
@@ -380,13 +380,13 @@ def allocate_region(paddr, size, flags, align, ramflag):
 	romaddress = newpaddr + size
 	if romaddress >= romend:
 	    print "ROM space is exhausted with ",paddr," region"
-	    exit()
+	    exit(1)
     else:
 	newpaddr = ramaddress
 	newpaddr = (newpaddr + (int(align,0) - 1)) & ~(int(align,0) - 1)
 	ramaddress = newpaddr + size
 	if ramaddress >= ramend:
 	    print "RAM space is exhausted with ",paddr," region"
-	    exit()
+	    exit(1)
     return (hex(paddr), hex(size), flags, hex(newpaddr)), newpaddr - paddr
 

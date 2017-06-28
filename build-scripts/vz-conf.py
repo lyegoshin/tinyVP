@@ -69,7 +69,7 @@ basepagesize = 4*KB
 
 def parse_config(filename):
     #global vm7_is_absent
-    vm = parse_config_file(filename, "map")
+    vm = parse_config_file(filename, "build")
     #
     #  setup ERET page addresses in VM7 in accordance with platform file definitions
     if 7 in configuration:
@@ -173,7 +173,7 @@ def parse_config(filename):
 					 print "Non-shared, non-emulated IRQ", irq, " is used by twice"
 					 error = 1
     if error == 1:
-	exit()
+	exit(1)
     return
 
 #
@@ -209,7 +209,7 @@ def check_uniq_address_range(vm):
 		    if check_range_compat(reg[2],reg2[2]):
 			print "10 Configuration file parse error, vm", vm["id"]
 			print "...address ranges overlap:",reg,reg2
-			exit()
+			exit(1)
     for vm2id in configuration:
 	vm2 = configuration[vm2id]
 	if vm2 is vm:
@@ -234,7 +234,7 @@ def create_pte_list(vm):
 	    pte.append((addr, size, block[2], physaddr, None))
 	    if (dmarequired == 1) and (addr != physaddr) and ("d" not in flags):
 		print "VM has designated for DMA but VA != PA, vm =", vm["id"], "memblock ", block
-		exit()
+		exit(1)
     if "device" in vm:
 	for device in vm["device"]:
 	    if "regblock" in device:
@@ -251,13 +251,13 @@ def create_pte_list(vm):
 			emulator = device["emulator"]
 		    if (emulator is None) and ("e" in flag):
 			print "Device", device["name"], " has no emulator but register block", block, " require emulation"
-			exit()
+			exit(1)
 		    pte.append((addr, size, flag, physaddr, emulator))
     for tpte in pte:
 	# check X-page size >= 4K
 	if ("x" in tpte[2]) and (tpte[1] < 0x1000):
 	    print "X-page size < 4K, vm =", vm["id"], "region =",tpte
-	    exit()
+	    exit(1)
     pte.sort(key=lambda k: k[0])
     vm["pte"] = pte
 
@@ -334,6 +334,9 @@ def small_pte_blocks(vm):
     newptelist = []
     # extend small blocks and add bitmasks
     for pte in ptelist:
+	# skip PTE with zero size, it is an artifact from build process
+	if pte[1] == 0:
+	    continue
 	if pte[1] < basepagesize:
 	    size = pte[1]
 	    sz0 = pagelistsizes[-1]
@@ -366,7 +369,7 @@ def small_pte_blocks(vm):
 		       (pte[4] != pte2[4]):
 			print "Address ranges overlap: emulated with non-emulated, vm",vm["id"]
 			print pte
-			exit()
+			exit(1)
 		    #print "SPB2: pte:",pte," pte2:", pte2
 		    bitm = merge_bitmask(pte[5],pte2[5])
 		    s = pte[2]
@@ -898,6 +901,10 @@ for vmid in configuration:
 	for region in vm["mmap"]:
 		if region[4] == 0:
 		    newmmap.append((region[0],region[1],region[2],region[3]))
+		    if "w" not in region[2]:
+			offset = 0
+			if region[3] is not None:
+			    offset = int(region[3],0) - int(region[0],0)
 		    continue
 		paddr = kphys(region[0])
 		size = round_region(region[1], region[3])

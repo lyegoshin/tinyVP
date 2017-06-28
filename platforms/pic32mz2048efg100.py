@@ -189,7 +189,7 @@ def output_ic_tables(configuration,ofile):
 		vm = configuration[vmid]
 		if "entry" not in vm:
 		    print "Missed 'entry' option in vm%s" % (vmid)
-		    exit()
+		    exit(1)
 		print >>ofile, "%s," % (vm["entry"]),
 	else:
 	    print >>ofile, "0,",
