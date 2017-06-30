@@ -4,7 +4,7 @@
     share = 1
     emulator = console
     regs =
-	0x1f822600 0x100 erw
+	0x1f822600 0x100 erwu
     .
 .
 
@@ -14,7 +14,7 @@
     share = 1
     emulator = console
     regs =
-	0x1f822000 0x100 erw
+	0x1f822000 0x100 erwu
     .
 .
 
@@ -24,7 +24,7 @@
     share = 1
     emulator = console
     regs =
-	0x1f822200 0x100 erw
+	0x1f822200 0x100 erwu
     .
 .
 
@@ -32,14 +32,14 @@
     name = uart1
     irq= 112 113 114
     regs =
-	0x1f822000 0x100 rw
+	0x1f822000 0x100 rwu
     .
 .
 
 .device
     name = ic
     share = 1
-    regs = 0x1f810000 0x1000 erw
+    regs = 0x1f810000 0x1000 erwu
     emulator = ic_emulator
 .
 
@@ -59,71 +59,71 @@
 
 .device
     name = portA
-    registers = 0x1f860000 0x100 rw
+    registers = 0x1f860000 0x100 rwu
 .
 
 .device
     name = portB
-    registers = 0x1f860100 0x100 rw
+    registers = 0x1f860100 0x100 rwu
 .
 
 .device
     name = portC
-    registers = 0x1f860200 0x100 rw
+    registers = 0x1f860200 0x100 rwu
 .
 
 .device
     name = portD
-    registers = 0x1f860300 0x100 rw
+    registers = 0x1f860300 0x100 rwu
 .
 
 .device
     name = portE
-    registers = 0x1f860400 0x100 rw
+    registers = 0x1f860400 0x100 rwu
 .
 
 .device
     name = portF
-    registers = 0x1f860500 0x100 rw
+    registers = 0x1f860500 0x100 rwu
 .
 
 .device
     name = portG
-    registers = 0x1f860600 0x100 rw
+    registers = 0x1f860600 0x100 rwu
 .
 
 .device
     name = portH
-    registers = 0x1f860700 0x100 rw
+    registers = 0x1f860700 0x100 rwu
 .
 
 .device
     name = portJ
-    registers = 0x1f860800 0x100 rw
+    registers = 0x1f860800 0x100 rwu
 .
 
 .device
     name = portK
-    registers = 0x1f860900 0x100 rw
+    registers = 0x1f860900 0x100 rwu
 .
 
 .device
     name = PPS-in
     share = 1
-    registers = 0x1f801400 0x100 rw
+    registers = 0x1f801400 0x100 rwu
 .
 
 .device
     name = PPS-out
     share = 1
-    registers = 0x1f801500 0x200 rw
+    registers = 0x1f801500 0x200 rwu
 .
 
 .device
     name = ports
     regs =
-	0x1f801400 0x300 rws
-	0x1f860000 0x1000 rws
+	0x1f801400 0x300 rwsu
+	0x1f860000 0x1000 rwsu
     .
 .
 
