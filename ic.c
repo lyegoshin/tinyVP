@@ -108,12 +108,12 @@ inline unsigned int get_thread_vmic_ipc(struct thread *thread, unsigned int irq)
 
 inline void set_thread_timer_irq(struct thread *thread)
 {
-	thread->vmdev.vmic.w4[IC_CP0_TIMER_WORD_NUMBER + (IC_IFS_BASE_OFFSET/4)] |= IC_CP0_TIMER_MASK;
+	thread->vmdev.vmic.w4[((IC_CP0_TIMER_WORD_NUMBER*16) + IC_IFS_BASE_OFFSET)/16] |= IC_CP0_TIMER_MASK;
 }
 
 inline unsigned int get_thread_timer_mask(struct thread *thread)
 {
-	return read_thread_vmic(thread, (IC_IEC_BASE_OFFSET + (IC_CP0_TIMER_WORD_NUMBER * 4))) & IC_CP0_TIMER_MASK;
+	return read_thread_vmic(thread, (IC_IEC_BASE_OFFSET + (IC_CP0_TIMER_WORD_NUMBER * 16))) & IC_CP0_TIMER_MASK;
 }
 
 inline unsigned int get_thread_timer_ipl(struct thread *thread)
@@ -123,7 +123,7 @@ inline unsigned int get_thread_timer_ipl(struct thread *thread)
 
 void clear_timer_irq()
 {
-	current->vmdev.vmic.w4[IC_CP0_TIMER_WORD_NUMBER + (IC_IFS_BASE_OFFSET/4)] &= ~IC_CP0_TIMER_MASK;
+	current->vmdev.vmic.w4[((IC_CP0_TIMER_WORD_NUMBER*16) + IC_IFS_BASE_OFFSET)/16] &= ~IC_CP0_TIMER_MASK;
 }
 
 inline unsigned int read_timer_voff(void)
