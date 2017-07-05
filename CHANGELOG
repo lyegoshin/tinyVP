@@ -1,13 +1,51 @@
+7/5/17:     Release 0.97
+
+    - Added access protection for guest DMA via PIC32MZEF System Bus
+      Arbiter registers. Configuration is adjusted, DMA protection in absense of
+      IOMMU, via SBA requires that Guest Virtual Addgress == Physical.
+      New option 'dma' defines guest DMA zone. Additional options 'dma-set' and
+      'dma-cfgpg-position' describes DMA device Priviledge Group and device
+      Peripheral Set for slave devices. Look into Microchip PIC32MZEF Family
+      Data Sheet sections:
+
+	4.2-4.3 System Bus Arbitration
+	34.0 Special features (for description of CFGPG register)
+
+      for technical details.
+      Now guest can't corrupt other guest or tinyVP memory and device registers.
+
+    - DMA guest on Digilent ChipKIT WiFire board
+
+    - A modified Sergei Vakulenko's pic32mz.h is used for symbolic definition of
+      PIC32MZEF device registers and bits.
+
+    - Some practical improvement is done in build process, like stop make at
+      configuration error etc
+
+    - A couple of bugs fixed: IC emulation bit position for CP0 COMPARE timer,
+      check a real IRQ mask in IC then a next interrupt is picked, use device
+      registers as uncachable and "volatile" in test configurations and UART.
+
+    - Buildfix: incorrect handling of modification time of ".map" files vs guest
+      image file is fixed.
+
+    - A separate Documentation directory is created
+
+
 6/16/17:    Release 0.96
 
     - New build framework for different platforms and different boards
       Board-dependent initalization and console definition is now located
       in separate files. Python build scripts have now a library of platforms
-      to do a platform-dependent stuff in a separate module.
+      to do a platform-dependent stuff in a separate module. tinyVP startup now
+      can use board-specific functions for board registers setup.
 
     - A simple bootloader is written into a separate file. It can be used
       instead of board 0xBFC00000 bootloader. It just initializes CPU/caches/etc
       and jumps to tinyVP initialization.
+
+    - Setup of PIC32MZEF EFUSE registers is added for flashing tinyVP into
+      bootloader area.
 
     - Microchip DM320007 board support and test guest
 

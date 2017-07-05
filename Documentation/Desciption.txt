@@ -73,7 +73,7 @@ I. Main distinctive features of tinyVP:
   virtual addresses must be equal to board physaddresses.
 
 
-II. List of tinyVP components and state (as 3/28/17)
+II. List of tinyVP components and state (as 7/4/17)
 
   - Variable size TLB refill handler and Python-based PTE tree creator and
     configurator                            (Done)
@@ -99,7 +99,13 @@ II. List of tinyVP components and state (as 3/28/17)
 
   - Console UART access emulation driver    (Done)
 
-  - DMA block access emulation driver       (-) DMA protection should be added
+  - Initial independent boot loader         (Done)
+
+  - Board registers configuration           (Done)
+
+  - DMA protection from guest DMA           (Done)
+
+  - DMA block access emulation driver       (-)
 
   - USB access emulation driver aka DMA address corrector
 					    (-)
@@ -117,4 +123,3 @@ II. List of tinyVP components and state (as 3/28/17)
   - Human command controller, optional      (Done partually, needs update)
 
   - Simplified build harness                (Done)
-
