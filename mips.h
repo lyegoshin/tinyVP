@@ -278,6 +278,8 @@ CP1_REGISTER(fcr31, "$31")
 #define inst_MFC0(inst)         (((inst) & 0xffe007f8) == 0x40000000)
 #define inst_MTC0(inst)         (((inst) & 0xffe007f8) == 0x40800000)
 #define inst_RDHWR(inst)        (((inst) & 0xffe0063f) == 0x7c00003b)
+#define inst_RDPGPR(inst)       (((inst) & 0xffe007ff) == 0x41400000)
+#define inst_WRPGPR(inst)       (((inst) & 0xffe007ff) == 0x41c00000)
 #define inst_SYSCALL_F0000(in)  ((in) == 0x03c0000c)
 
 #define vz_mode(exfr)       \
