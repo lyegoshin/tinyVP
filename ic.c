@@ -680,8 +680,6 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 {
 	unsigned int *ifsp;
 	unsigned int *iecp;
-	volatile unsigned int *rifsp;
-	unsigned int const *pmask;
 	unsigned int word;
 	unsigned int tipl0 = 0;
 	int irq0 = -1;
@@ -692,12 +690,10 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 
 	ifsp = &(current->vmdev.vmic.w4[(IC_IFS_BASE_OFFSET)/16]) - 1;
 	iecp = &(current->vmdev.vmic.w4[(IC_IEC_BASE_OFFSET)/16]) - 1;
-	rifsp = IC_IFS - 1;
-	pmask = vm_ic_masks[current->vmid] - 1;
 	*tipl = 0;
 
 	/* word 0 */
-	if ((word = ((*++ifsp) & (*++iecp)) | ((*++rifsp) & (*++pmask)))) {
+	if ((word = ((*++ifsp) & (*++iecp)))) {
 		irq = pickup_word_sw_irq(exfr, word, 0, tipl, gipl);
 		if ((irq >= 0) && (*tipl > tipl0)) {
 			tipl0 = *tipl;
@@ -705,7 +701,7 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 		}
 	}
 	/* word 1 */
-	if ((word = ((*++ifsp) & (*++iecp)) | ((*++rifsp) & (*++pmask)))) {
+	if ((word = ((*++ifsp) & (*++iecp)))) {
 		irq = pickup_word_sw_irq(exfr, word, 32, tipl, gipl);
 		if ((irq >= 0) && (*tipl > tipl0)) {
 			tipl0 = *tipl;
@@ -713,7 +709,7 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 		}
 	}
 	/* word 2 */
-	if ((word = ((*++ifsp) & (*++iecp)) | ((*++rifsp) & (*++pmask)))) {
+	if ((word = ((*++ifsp) & (*++iecp)))) {
 		irq = pickup_word_sw_irq(exfr, word, 64, tipl, gipl);
 		if ((irq >= 0) && (*tipl > tipl0)) {
 			tipl0 = *tipl;
@@ -721,7 +717,7 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 		}
 	}
 	/* word 3 */
-	if ((word = ((*++ifsp) & (*++iecp)) | ((*++rifsp) & (*++pmask)))) {
+	if ((word = ((*++ifsp) & (*++iecp)))) {
 		irq = pickup_word_sw_irq(exfr, word, 96, tipl, gipl);
 		if ((irq >= 0) && (*tipl > tipl0)) {
 			tipl0 = *tipl;
@@ -729,7 +725,7 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 		}
 	}
 	/* word 4 */
-	if ((word = ((*++ifsp) & (*++iecp)) | ((*++rifsp) & (*++pmask)))) {
+	if ((word = ((*++ifsp) & (*++iecp)))) {
 		irq = pickup_word_sw_irq(exfr, word, 128, tipl, gipl);
 		if ((irq >= 0) && (*tipl > tipl0)) {
 			tipl0 = *tipl;
@@ -737,7 +733,7 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 		}
 	}
 	/* word 5 */
-	if ((word = ((*++ifsp) & (*++iecp)) | ((*++rifsp) & (*++pmask)))) {
+	if ((word = ((*++ifsp) & (*++iecp)))) {
 		irq = pickup_word_sw_irq(exfr, word, 160, tipl, gipl);
 		if ((irq >= 0) && (*tipl > tipl0)) {
 			tipl0 = *tipl;
@@ -745,7 +741,7 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 		}
 	}
 	/* word 6 */
-	if ((word = ((*++ifsp) & (*++iecp)) | ((*++rifsp) & (*++pmask)))) {
+	if ((word = ((*++ifsp) & (*++iecp)))) {
 		irq = pickup_word_sw_irq(exfr, word, 192, tipl, gipl);
 		if ((irq >= 0) && (*tipl > tipl0)) {
 			tipl0 = *tipl;
