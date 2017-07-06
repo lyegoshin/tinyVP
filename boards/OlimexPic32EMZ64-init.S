@@ -6,6 +6,11 @@
 .globl  _board_init
 
 _board_init:
+	move    t8, ra
+	jal     _pic32mzef_unlock
+	 nop
+	jal     _pic32mzef_setup
+	 nop
 	li  $2, 7 << 8
 	sw  $2, LATBCLR
 	sw  $2, TRISBCLR
@@ -16,18 +21,23 @@ _board_init:
 	sw  $2, U4RXR // = RD0
 	li  $2, 2
 	sw  $2, RPD4R // = U4TX
-	jr  $31
+	move    ra, t8
+	jr  ra
 	 nop
 
 .type _board_init_end, @function
 .globl  _board_init_end
 
 _board_init_end:
+	move    t8, ra
 	li  $2, 7 << 8
 	sw  $2, LATBCLR
 	li  $2, 1 << 8          // green LED2=RB8 only
 	sw  $2, LATBSET
-	jr  $31
+//        jal     _pic32mzef_lock  // - not yet, guest does it's own pin routing
+//         nop
+	move    ra, t8
+	jr  ra
 	 nop
 
 .type _nmi_exception, @function

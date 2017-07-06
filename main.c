@@ -50,6 +50,7 @@ void    __main(/* void */ unsigned int a1, unsigned int a2, unsigned int a3, uns
 
 	init_IRQ();
 	irq_set_prio_and_unmask(console_irq_rx, _CONSOLE_PRIO);
+	init_SBA();
 
 	// Finish a board specific initialization
 	_board_init_end();
@@ -89,6 +90,68 @@ void    __main(/* void */ unsigned int a1, unsigned int a2, unsigned int a3, uns
 	printf("PMD4=%08x, PMD5=%08x, PMD6=%08x, PMD7=%08x\n",
 		*(volatile unsigned int*)0xbf800070, *(volatile unsigned int*)0xbf800080,
 		*(volatile unsigned int*)0xbf800090, *(volatile unsigned int*)0xbf8000a0);
+	printf("CFGPG=%08x, CFGCON=%08x\n",
+		*(volatile unsigned int*)0xbf8000E0, *(volatile unsigned int*)0xbf800000);
+	printf("SBT2REG0=%08x, SBT2RD0=%08x, SBT2WR0=%08x\n",
+		*(volatile unsigned int*)0xbf8f8840, *(volatile unsigned int*)0xbf8f8850, *(volatile unsigned int*)0xbf8f8858);
+	printf("SBT2REG1=%08x, SBT2RD1=%08x, SBT2WR1=%08x\n",
+		*(volatile unsigned int*)0xbf8f8860, *(volatile unsigned int*)0xbf8f8870, *(volatile unsigned int*)0xbf8f8878);
+	printf("SBT2REG2=%08x, SBT2RD2=%08x, SBT2WR2=%08x\n",
+		*(volatile unsigned int*)0xbf8f8880, *(volatile unsigned int*)0xbf8f8890, *(volatile unsigned int*)0xbf8f8898);
+uart_start_console();
+#if 0
+//*(volatile unsigned int*)0xbf8f8850 = 7;
+//*(volatile unsigned int*)0xbf8f8858 = 7;
+*(volatile unsigned int*)0xbf8f8870 = 7;
+*(volatile unsigned int*)0xbf8f8878 = 7;
+*(volatile unsigned int*)0xbf8f8890 = 6;
+*(volatile unsigned int*)0xbf8f8898 = 6;
+//*(volatile unsigned int*)0xbf8f8840 = 0x0;
+*(volatile unsigned int*)0xbf8f8860 = 0x30;
+*(volatile unsigned int*)0xbf8f8880 = 0x80;
+	printf(" SBT2REG0=%08x, SBT2RD0=%08x, SBT2WR0=%08x\n",
+		*(volatile unsigned int*)0xbf8f8840, *(volatile unsigned int*)0xbf8f8850, *(volatile unsigned int*)0xbf8f8858);
+	printf(" SBT2REG1=%08x, SBT2RD1=%08x, SBT2WR1=%08x\n",
+		*(volatile unsigned int*)0xbf8f8860, *(volatile unsigned int*)0xbf8f8870, *(volatile unsigned int*)0xbf8f8878);
+	printf(" SBT2REG2=%08x, SBT2RD2=%08x, SBT2WR2=%08x\n",
+		*(volatile unsigned int*)0xbf8f8880, *(volatile unsigned int*)0xbf8f8890, *(volatile unsigned int*)0xbf8f8898);
+uart_start_console();
+#endif
+	printf("SBT3REG0=%08x, SBT3RD0=%08x, SBT3WR0=%08x\n",
+		*(volatile unsigned int*)0xbf8f8c40, *(volatile unsigned int*)0xbf8f8c50, *(volatile unsigned int*)0xbf8f8c58);
+	printf("SBT3REG1=%08x, SBT3RD1=%08x, SBT3WR1=%08x\n",
+		*(volatile unsigned int*)0xbf8f8c60, *(volatile unsigned int*)0xbf8f8c70, *(volatile unsigned int*)0xbf8f8c78);
+	printf("SBT3REG2=%08x, SBT3RD2=%08x, SBT3WR2=%08x\n",
+		*(volatile unsigned int*)0xbf8f8c80, *(volatile unsigned int*)0xbf8f8c90, *(volatile unsigned int*)0xbf8f8c98);
+uart_start_console();
+#if 0
+*(volatile unsigned int*)0xbf8f8c50 = 1;
+*(volatile unsigned int*)0xbf8f8c58 = 1;
+*(volatile unsigned int*)0xbf8f8c70 = 6;
+*(volatile unsigned int*)0xbf8f8c78 = 6;
+*(volatile unsigned int*)0xbf8f8c40 = 0x40048;
+*(volatile unsigned int*)0xbf8f8c60 = 0x40048;
+	printf(" SBT3REG0=%08x, SBT3RD0=%08x, SBT3WR0=%08x\n",
+		*(volatile unsigned int*)0xbf8f8c40, *(volatile unsigned int*)0xbf8f8c50, *(volatile unsigned int*)0xbf8f8c58);
+	printf(" SBT3REG1=%08x, SBT3RD1=%08x, SBT3WR1=%08x\n",
+		*(volatile unsigned int*)0xbf8f8c60, *(volatile unsigned int*)0xbf8f8c70, *(volatile unsigned int*)0xbf8f8c78);
+	printf(" SBT3REG2=%08x, SBT3RD2=%08x, SBT3WR2=%08x\n",
+		*(volatile unsigned int*)0xbf8f8c80, *(volatile unsigned int*)0xbf8f8c90, *(volatile unsigned int*)0xbf8f8c98);
+uart_start_console();
+#endif
+#if 0
+*(volatile unsigned int*)0xbf8f9058 = 0;
+*(volatile unsigned int*)0xbf8f9040 = 0x20000048;
+*(volatile unsigned int*)0xbf8f9060 = 0;
+*(volatile unsigned int*)0xbf8f9070 = 7;
+#endif
+	printf("SBT4REG0=%08x, SBT4RD0=%08x, SBT4WR0=%08x\n",
+		*(volatile unsigned int*)0xbf8f9040, *(volatile unsigned int*)0xbf8f9050, *(volatile unsigned int*)0xbf8f9058);
+	printf("SBT4REG1=%08x, SBT4RD1=%08x, SBT4WR1=%08x\n",
+		*(volatile unsigned int*)0xbf8f9060, *(volatile unsigned int*)0xbf8f9070, *(volatile unsigned int*)0xbf8f9078);
+	printf("SBT4REG2=%08x, SBT4RD2=%08x, SBT4WR2=%08x\n",
+		*(volatile unsigned int*)0xbf8f9080, *(volatile unsigned int*)0xbf8f9090, *(volatile unsigned int*)0xbf8f9098);
+uart_start_console();
 
 	do {
 //                printf("-------- [%T] ---------\n",current_wall_time);

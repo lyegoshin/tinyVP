@@ -51,9 +51,9 @@ pages.
   There are two mandatory device emulators in tinyVP, others can be easily added.
 It is a shared UART console and Interrupt Controller. Both devices can be
 used by any guests simultaneously. SoC port control can be shared too but that
-driver is not written yet as is a DMA protection (it is a next step for
-development). System configuration and clocks registers can be write protected
-(actually, write is ignored and that is defined during configuration).
+driver is not written yet. System configuration and clocks registers can be
+write protected (actually, write is ignored and that is defined during
+configuration).
 
   Both guest interrupt models are supported - no interrupt in guest (use WAIT)
 and a normal interrupt handling with EIC interrupt controller. However,
@@ -210,6 +210,13 @@ Note2: You can try two another boards with:
 	    make:   CONFIG=config-OlimexPic32EMZ64.file
 		    BOARD=OlimexPic32EMZ64
 
+or you can try a DMA guest example (memory-2-memory):
+
+	Digilent chipKIT WiFire:
+
+	    guest:  pic32mz-dma-guest
+	    make:   CONFIG=config-dma.file
+		    BOARD=DigilentChipKitWiFire
 
 Contact
 ===================================================================

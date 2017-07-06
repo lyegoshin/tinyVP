@@ -1,7 +1,7 @@
 include boards/$(BOARD)
 
-SOURCE = main.c uart.c printf.c ic.c log.c strlen.c time.c exception.c \
-	branch.c tlb.c tty.c eic.c console.c scheduler.c
+SOURCE = main.c uart.c printf.c ic.c sba.c log.c strlen.c time.c exception.c \
+	board_setup_tbl.c branch.c tlb.c tty.c eic.c console.c scheduler.c
 
 GENERATED_SOURCE = pte.c ic-tables.c
 

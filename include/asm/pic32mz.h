@@ -1241,6 +1241,62 @@
 #define PIC32_CFGCON_TDOEN      0x00000001 /* 2-wire JTAG protocol uses TDO */
 
 /*--------------------------------------
+ * System Bus registers.
+ */
+
+#define SBFLAG          PIC32_R (0xF0510)
+#define SBTxELOG1(i)    PIC32_R (0xF8020 + (i << 10))
+#define SBTxELOG2(i)    PIC32_R (0xF8024 + (i << 10))
+#define SBTxECON(i)     PIC32_R (0xF8028 + (i << 10))
+#define SBTxECLRM(i)    PIC32_R (0xF8038 + (i << 10))
+
+/* access to first half of RAM 0-256KB */
+#define SBT2REG0        PIC32_R (0xF8840)
+#define SBT2RD0         PIC32_R (0xF8850)
+#define SBT2WR0         PIC32_R (0xF8858)
+#define SBT2REG1        PIC32_R (0xF8860)
+#define SBT2RD1         PIC32_R (0xF8870)
+#define SBT2WR1         PIC32_R (0xF8878)
+#define SBT2REG2        PIC32_R (0xF8880)
+#define SBT2RD2         PIC32_R (0xF8890)
+#define SBT2WR2         PIC32_R (0xF8898)
+
+/* access to second half of RAM 256KB-512KB */
+#define SBT3REG0        PIC32_R (0xF8C40)
+#define SBT3RD0         PIC32_R (0xF8C50)
+#define SBT3WR0         PIC32_R (0xF8C58)
+#define SBT3REG1        PIC32_R (0xF8C60)
+#define SBT3RD1         PIC32_R (0xF8C70)
+#define SBT3WR1         PIC32_R (0xF8C78)
+#define SBT3REG2        PIC32_R (0xF8C80)
+#define SBT3RD2         PIC32_R (0xF8C90)
+#define SBT3WR2         PIC32_R (0xF8C98)
+
+/* access to Peripheral Set 2 (SPI, I2C, UART, PMP regs) */
+#define SBT6REG0        PIC32_R (0xF9840)
+#define SBT6RD0         PIC32_R (0xF9850)
+#define SBT6WR0         PIC32_R (0xF9858)
+#define SBT6REG1        PIC32_R (0xF9860)
+#define SBT6RD1         PIC32_R (0xF9870)
+#define SBT6WR1         PIC32_R (0xF9878)
+
+/* access to Peripheral Set 3 (OC, IC, ADC, Timers, Comparators regs */
+#define SBT7REG0        PIC32_R (0xF9C40)
+#define SBT7RD0         PIC32_R (0xF9C50)
+#define SBT7WR0         PIC32_R (0xF9C58)
+#define SBT7REG1        PIC32_R (0xF9C60)
+#define SBT7RD1         PIC32_R (0xF9C70)
+#define SBT7WR1         PIC32_R (0xF9C78)
+
+/* access to Peripheral Set 4 (PORTA-PORTK regs) */
+#define SBT8REG0        PIC32_R (0xFA040)
+#define SBT8RD0         PIC32_R (0xFA050)
+#define SBT8WR0         PIC32_R (0xFA058)
+#define SBT8REG1        PIC32_R (0xFA060)
+#define SBT8RD1         PIC32_R (0xFA070)
+#define SBT8WR1         PIC32_R (0xFA078)
+
+/*--------------------------------------
  * A/D Converter registers.
  */
 #define AD1CON1         PIC32_R (0x4b000)   /* Control register 1 */

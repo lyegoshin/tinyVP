@@ -243,6 +243,22 @@ def parse_vm(f, vm, stage):
 		else:
 		    print "5 Configuration file error, device absent in library", lline
 		    exit(1)
+	    elif key == "dma":
+		if "dma" in vm:
+		    print "Error: keyword 'dma' is used twice in vm"
+		    exit()
+		try:
+		    address, size, flag = value.split()
+		except:
+		    address, size = value.split()
+		    flag = "rw"
+		vm["dma"] = (address, size, flag)
+		mmap = []
+		if "mmap" in vm:
+		    mmap = vm["mmap"]
+		mapblock = [(address, size, flag, address, 0)]
+		mmap.extend(mapblock)
+		vm["mmap"] = mmap
 	    elif key == "entry":
 		if "entry" not in vm:
 		    vm["entry"] = value

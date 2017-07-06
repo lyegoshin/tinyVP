@@ -1,0 +1,106 @@
+    PIC32MZEF SoC DMA configuration guidelines.
+
+=====================================================
+
+  In case of direct control of DMA device by guest there is a need to protect
+tinyVP and other guest memory from corruption by this DMA. Besides that,
+there is a problem of address conversion from Guest Virtual Address space to
+physical memory space which should be used in DMA address registers.
+
+  PIC32MZEF SoC has no IOMMU, so guest should be build that Guest Virtual
+Address is equal to Physical Address. However, PIC32MZEF has some kind of
+firewall on system bus which can be used to restrict DMA address ranges for
+different devices. It is a part of System Bus Arbiter and is described in
+Microchip PIC32MZEF Family Data Sheet sections:
+
+	4.2-4.3 System Bus Arbitration
+	34.0 Special features (for description of CFGPG register)
+
+tinyVP configuration does some automatic help in configuring a SoC for using
+this feature. Of course, an automatic configuration puts some restriction on
+guests.
+
+
+So,
+
+1)  Guest using DMA should be build in VA == PA for DMA memory. It is assumed
+    this memory is RAM but not code. In configuration file the option
+
+	dma = address size flags
+
+    can be used to indicate a guest memory for DMA. Size must be a power of 2,
+    it is PIC32MZEF SoC requirement and address must be aligned to size.
+    Flags is usual flags.
+
+    It can be still desirable to use an automatic allocation of flash space for
+    guest code, so 'elf' configuration option can be used. However, 'dma'
+    option already sets RAM space, so - to stop an automatic allocation of RAM
+    for this guest the "ram" option in ".mmap" block can be used as
+
+	.mmap
+	    ram = 0 0 rw 0x1000
+	.
+
+
+2)  Each DMA device in PIC32MZEF has a capability to be associated with one of 4
+    Prividleg Group for DMA transactions. This association is set in SoC CFGPG
+    register by configuration. But device description in configuration should
+    have indicated a bit position in CFGPG for that group of this device. In
+    Microchip PIC32MZEF documentation it is stated as:
+
+	Crypto Engine Permission Group bits         - bit 24
+	Flash Control Permission Group bits         - bit 22
+	SQI Module Permission Group bits            - bit 20
+	Ethernet Module Permission Group bits       - bit 16
+	CAN2 Module Permission Group bits           - bit 14
+	CAN1 Module Permission Group bits           - bit 12
+	USB Module Permission Group bits            - bit 8
+	Generic DMA Module Permission Group bits    - bit 4
+	CPU                                         - bit 0 (not used by tinyVP)
+
+    (Random Number Generator is not indicated in CFGPG and can be a security hole)
+
+    The configuration option in .device block can set this:
+
+	dma-cfgpg-position = 4          # Generic DMA Module
+
+    tinyVP configuration assigns a Permission Group to DMA guest (only two is
+    possible from 4 Groups), then creates an array of System Bus Arbiter
+    initializer words to restrict a specific group access to some memory range
+    given in 'dma' option above.
+
+
+3)  Any DMA device can Read/Write memory _AND_ another (usually slave) device
+    registers. It is used pretty often with Generic DMA module and devices like
+    SoC I/O ports etc. So, to protect devices from unauthorized DMA access
+    the SoC has a couple of Peripheral Sets which combine a couple of devices
+    in one Set, in another Set and 3rd Set:
+
+	Peripheral Set 2:   SPI, I2C, UART, PMP
+	Peripheral Set 3:   Timer, Ic, OC, ADC, Comparators
+	Peripheral Set 4:   PortA-PortK
+
+    (the other Sets are not interesting, it either includes DMA devices or
+     some board-critical devices which must be prevented from guest DMA)
+
+    To indicate which set is it, the configuration option can be used:
+
+	dma-set = 4             # all SoC I/O ports
+
+    Configuration adds to System Bus Arbiter initializer words array
+    the initialization of proper set access registers.
+
+    Note: yes, it is impossible to give SPI to one DMA guest and I2C
+	  to another DMA guest because both devices shares a set.
+	  Moreover, DMA guest using SPI can still corrupt UART registers.
+
+
+4)  For the obvious reason, a guest using DMA with emulated device like console
+    doesn't work. In this case a real console device should be changed.
+
+
+Final note: It is possible to do a more fine tuning of DMA protection via
+    replacing a call to _pic32mzef_setup with some another System Bus Arbiter
+    initialization. In this case it is possible to have two guests using the
+    same Peripheral Set (but different devices), or even have 3 guests with DMA
+    in some specific configurations.

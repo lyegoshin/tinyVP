@@ -6,6 +6,11 @@
 .globl  _board_init
 
 _board_init:
+	move    t8, ra
+	jal     _pic32mzef_unlock
+	 nop
+	jal     _pic32mzef_setup
+	 nop
 	// LED1-3
 	li  $2, 7
 	sw  $2, LATHCLR
@@ -37,16 +42,21 @@ _board_init:
 	li  $2, 1
 	sw  $2, RPA15R      // 0xBF80153C      // RPA15R = U1TX
 
+	move    ra, t8
 	jr  $31
 	 nop
 
 .type _board_init_end, @function
 .globl  _board_init_end
 _board_init_end:
+	move    t8, ra
 	li  $2, 7
 	sw  $2, LATHCLR
 	li  $2, 4
 	sw  $2, LATHSET // green only
+//        jal     _pic32mzef_lock  // - not yet, guest does it's own pin routing
+//         nop
+	move    ra, t8
 	jr  $31
 	 nop
 

@@ -9,4 +9,4 @@ vzdata =    0x80078000
 vzstacktop  =   0x80080000
 DEVCFG = boards/OlimexPic32EMZ64-DEVCFG.S
 DEVCFGADDR = 0x9FC0FFC0
-BOARDINIT = boards/OlimexPic32EMZ64-init.S
+BOARDINIT = boards/OlimexPic32EMZ64-init.S platforms/pic32mzef-setup.S

@@ -34,6 +34,7 @@
     regs =
 	0x1f822000 0x100 rwu
     .
+    dma-set = 2
 .
 
 .device
@@ -60,51 +61,61 @@
 .device
     name = portA
     registers = 0x1f860000 0x100 rwu
+    dma-set = 4
 .
 
 .device
     name = portB
     registers = 0x1f860100 0x100 rwu
+    dma-set = 4
 .
 
 .device
     name = portC
     registers = 0x1f860200 0x100 rwu
+    dma-set = 4
 .
 
 .device
     name = portD
     registers = 0x1f860300 0x100 rwu
+    dma-set = 4
 .
 
 .device
     name = portE
     registers = 0x1f860400 0x100 rwu
+    dma-set = 4
 .
 
 .device
     name = portF
     registers = 0x1f860500 0x100 rwu
+    dma-set = 4
 .
 
 .device
     name = portG
     registers = 0x1f860600 0x100 rwu
+    dma-set = 4
 .
 
 .device
     name = portH
     registers = 0x1f860700 0x100 rwu
+    dma-set = 4
 .
 
 .device
     name = portJ
     registers = 0x1f860800 0x100 rwu
+    dma-set = 4
 .
 
 .device
     name = portK
     registers = 0x1f860900 0x100 rwu
+    dma-set = 4
 .
 
 .device
@@ -125,6 +136,7 @@
 	0x1f801400 0x300 rwsu
 	0x1f860000 0x1000 rwsu
     .
+    dma-set = 4
 .
 
 .device

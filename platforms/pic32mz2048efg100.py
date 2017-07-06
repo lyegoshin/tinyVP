@@ -28,8 +28,41 @@ import os
 from pprint import pprint
 import pprint
 import sys
-
+import math
 import __builtin__
+
+def board_parse_check(configuration):
+    # check VM DMA-capability
+    dmaset = {}
+    dmagroup = 0
+    for vmid in configuration:
+	vm = configuration[vmid]
+	dmarequired = 0
+	if "device" in vm:
+	    for dev in vm["device"]:
+		if "dma-cfgpg-position" in dev:
+		    if dmarequired == 0:
+			dmagroup += 1
+		    dmarequired = 1
+	    if "dma" in vm:
+		for dev in vm["device"]:
+		    if "dma-set" in dev:
+			ds = int(dev["dma-set"])
+			if ds in dmaset:
+			    if dmaset[ds] != vmid:
+				print "Error: two VMs use the same DMA Device Set. Can't have DMA protection of both in PIC32MZEF"
+				exit(1)
+			else:
+			    dmaset[ds] = vmid
+	#print "dmarequired", dmarequired, " vmid", vm['id']
+	if dmarequired == 1:
+	    if "dma" not in vm:
+		print "Warning: VM has DMA-capable device but not DMA zone, vm =", vm["id"]
+	elif "dma" in vm:
+		del vm["dma"]
+    if dmagroup > 2:
+	print "Error: More than 2 VMs have DMA devices, it is not supported on PIC32MZEF"
+	exit(1)
 
 def output_irqmask(ofile,irqs):
     for w in range(0,7):
@@ -209,3 +242,156 @@ def output_ic_tables(configuration,ofile):
     print >>ofile, " };"
 
 
+def output_board_setup(configuration,ofile):
+    print >>ofile, "#include <asm/pic32mz.h>\n"
+    print >>ofile, "unsigned int const board_setup_tbl[] = {"
+    #
+    #           Output DMA protection to System Bus Arbitration registers
+    #
+    dma_group = 0
+    cfgpg = 0
+    address = {}
+    size = {}
+    dmaset = {}
+    for vmid in sorted(configuration):
+	# vm0 has no IC emulation
+	if vmid == 0:
+	    continue
+	# skip VM7 IC emulation if VM7 has just ERET page
+	if (vmid == 7) and (__builtin__.vm7_is_absent == 1):
+	    continue
+	vm = configuration[vmid]
+	if "dma" in vm:
+	    dmazone = vm["dma"]
+	    dma_group += 1
+	    vm["dma_group"] = dma_group
+	    address[dma_group] = int(dmazone[0],0)
+	    size[dma_group] = int(dmazone[1],0)
+	    if "device" in vm:
+		for dev in vm["device"]:
+		    if "dma-cfgpg-position" in dev:
+			cfgpg |= (dma_group << int(dev["dma-cfgpg-position"]))
+		    if "dma-set" in dev:
+			dmaset[int(dev["dma-set"])] = dma_group
+
+    #      Configure a standard access of Group 0
+    #
+    # Configure CPU access to first half of RAM 0-256KB
+    print >>ofile, "\tSBT2REG0, 0x00000048, \t// addr=0, size=256KB"
+    print >>ofile, "\tSBT2RD0,  0x00000001, \t// Group 0 (CPU)"
+    print >>ofile, "\tSBT2WR0,  0x00000001, \t// Group 0 (CPU)"
+    #
+    # Configure CPU access to second half of RAM 256KB-512KB
+    print >>ofile, "\tSBT3REG0, 0x00040048, \t// addr=256KB, size=256KB"
+    print >>ofile, "\tSBT3RD0,  0x00000001, \t// Group 0 (CPU)"
+    print >>ofile, "\tSBT3WR0,  0x00000001, \t// Group 0 (CPU)"
+    #
+    # Configure CPU access to Peripheral Set 2 (SPI, I2C, UART, PMP regs)
+    print >>ofile, "\tSBT6REG0, 0x1F820038, \t// addr=0x1F82000, size=64KB"
+    print >>ofile, "\tSBT6RD0,  0x00000001, \t// Group 0 (CPU)"
+    print >>ofile, "\tSBT6WR0,  0x00000001, \t// Group 0 (CPU)"
+    #
+    # Configure CPU access to Peripheral Set 3 (OC, IC, ADC, Timers, Comparators regs)
+    print >>ofile, "\tSBT7REG0, 0x1F840038, \t// addr=0x1F84000, size=64KB"
+    print >>ofile, "\tSBT7RD0,  0x00000001, \t// Group 0 (CPU)"
+    print >>ofile, "\tSBT7WR0,  0x00000001, \t// Group 0 (CPU)"
+    #
+    # Configure CPU access to Peripheral Set 4 (PORTA-PORTK regs)
+    print >>ofile, "\tSBT8REG0, 0x1F860038, \t// addr=0x1F86000, size=64KB"
+    print >>ofile, "\tSBT8RD0,  0x00000001, \t// Group 0 (CPU)"
+    print >>ofile, "\tSBT8WR0,  0x00000001, \t// Group 0 (CPU)"
+    #
+    #      Configure memory for access by DMA Group 1
+    if 1 in address:
+	if address[1] < 0x40000:
+	    # Configure CPU access to first half of RAM 0-256KB
+	    log = int(math.log(size[1],2)) - 9
+	    rd = address[1]
+	    rd |= (log << 3)
+	    print >>ofile, "\tSBT2REG1, 0x%08x, \t// size=0x%x" % (rd,size[1])
+	    print >>ofile, "\tSBT2RD1,  0x00000003, \t// Group 0,1"
+	    print >>ofile, "\tSBT2WR1,  0x00000003, \t// Group 0,1"
+	    # Shut another half
+	    print >>ofile, "\tSBT3REG1, 0x00040000,"
+	    print >>ofile, "\tSBT3RD1,  0x00000001, \t// Group 0"
+	    print >>ofile, "\tSBT3WR1,  0x00000001, \t// Group 0"
+	else:
+	    # Shut another half
+	    print >>ofile, "\tSBT2REG1, 0x00000000, \t"
+	    print >>ofile, "\tSBT2RD1,  0x00000001, \t// Group 0"
+	    print >>ofile, "\tSBT2WR1,  0x00000001, \t// Group 0"
+	    # Configure CPU access to second half of RAM 256KB-512KB
+	    log = int(math.log(size[1],2)) - 9
+	    rd = address[1]
+	    rd |= (log << 3)
+	    print >>ofile, "\tSBT3REG1, 0x%08x, \t// size=0x%x" % (rd,size[1])
+	    print >>ofile, "\tSBT3RD1, 0x00000003, \t// Group 0,1"
+	    print >>ofile, "\tSBT3WR1, 0x00000003, \t// Group 0,1"
+    #
+    #      Configure memory for access by DMA Group 2
+    if 2 in address:
+	if address[2] < 0x40000:
+	    # Configure CPU access to first half of RAM 0-256KB
+	    log = int(math.log(size[2],2)) - 9
+	    rd = address[2]
+	    rd |= (log << 3)
+	    print >>ofile, "\tSBT2REG2, 0x%08x, \t// size=0x%x" % (rd,size[2])
+	    print >>ofile, "\tSBT2RD2,  0x00000005, \t// Group 0,2"
+	    print >>ofile, "\tSBT2WR2,  0x00000005, \t// Group 0,2"
+	    # Shut another half
+	    print >>ofile, "\tSBT3REG2, 0x00040000,"
+	    print >>ofile, "\tSBT3RD2,  0x00000001, \t// Group 0"
+	    print >>ofile, "\tSBT3WR2,  0x00000001, \t// Group 0"
+	else:
+	    # Shut another half
+	    print >>ofile, "\tSBT2REG2, 0x00000000,"
+	    print >>ofile, "\tSBT2RD2,  0x00000001, \t// Group 0"
+	    print >>ofile, "\tSBT2WR2,  0x00000001, \t// Group 0"
+	    # Configure CPU access to second half of RAM 256KB-512KB
+	    log = int(math.log(size[2],2)) - 9
+	    rd = address[2]
+	    rd |= (log << 3)
+	    print >>ofile, "\tSBT3REG2, 0x%08x, \t// size=0x%x" % (rd,size[2])
+	    print >>ofile, "\tSBT3RD2,  0x00000005, \t// Group 0,2"
+	    print >>ofile, "\tSBT3WR2,  0x00000005, \t// Group 0,2"
+    #
+    #      Configure DMA Peripheral Set 2 for access by DMA Group
+    if 2 in dmaset:
+	gr = (1 << dmaset[2]) | 1
+	print >>ofile, "\tSBT6REG1, 0x1F820038, \t// addr=0x1F82000, size=64KB"
+	print >>ofile, "\tSBT6RD1,  0x%08x," % (gr)
+	print >>ofile, "\tSBT6WR1,  0x%08x," % (gr)
+    else:
+	print >>ofile, "\tSBT6REG1, 0x1F820000, \t// addr=0x1F82000, size=null"
+	print >>ofile, "\tSBT6RD1,  0x00000001, \t// Group 0"
+	print >>ofile, "\tSBT6WR1,  0x00000001, \t// Group 0"
+    #
+    #      Configure DMA Peripheral Set 3 for access by DMA Group
+    if 3 in dmaset:
+	gr = (1 << dmaset[3]) | 1
+	print >>ofile, "\tSBT7REG1, 0x1F840038, \t// addr=0x1F84000, size=64KB"
+	print >>ofile, "\tSBT7RD1,  0x%08x," % (gr)
+	print >>ofile, "\tSBT7WR1,  0x%08x," % (gr)
+    else:
+	print >>ofile, "\tSBT7REG1, 0x1F840000, \t// addr=0x1F84000, size=null"
+	print >>ofile, "\tSBT7RD1,  0x00000001, \t// Group 0"
+	print >>ofile, "\tSBT7WR1,  0x00000001, \t// Group 0"
+    #
+    #      Configure DMA Peripheral Set 4 for access by DMA Group
+    if 4 in dmaset:
+	gr = (1 << dmaset[4]) | 1
+	print >>ofile, "\tSBT8REG1, 0x1F860038, \t// addr=0x1F86000, size=64KB"
+	print >>ofile, "\tSBT8RD1,  0x%08x," % (gr)
+	print >>ofile, "\tSBT8WR1,  0x%08x," % (gr)
+    else:
+	print >>ofile, "\tSBT8REG1, 0x1F860000, \t// addr=0x1F86000, size=null"
+	print >>ofile, "\tSBT8RD1,  0x00000001, \t// Group 0"
+	print >>ofile, "\tSBT8WR1,  0x00000001, \t// Group 0"
+    #
+    #       Configure CFGPG
+    print >>ofile, "\n\tCFGPG,  0x%08x,\n" % (cfgpg)
+    #
+    #   End of board register configuration list
+    #
+    print >>ofile, "\t0, \t// STOP"
+    print >>ofile, "};"

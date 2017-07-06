@@ -9,4 +9,4 @@ vzdata =    0x80078000
 vzstacktop  =   0x80080000
 DEVCFG = boards/null.S
 DEVCFGADDR = 0
-BOARDINIT = boards/DigilentChipKitWiFire-init.S
+BOARDINIT = boards/DigilentChipKitWiFire-init.S platforms/pic32mzef-setup.S

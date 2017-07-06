@@ -1,0 +1,25 @@
+.vm
+    id = 1
+    irqpolling = 1
+    elf = pic32mz-dma-guest/uart.elf
+    entry = 0x9fc00030
+    .mmap
+	code = 0x1fc08000 0x8000 rxds 0x1fc08000
+	ram  = 0 0 rw 0x1000    # fictious stmt, to kill "ram" from .map file
+				# because a real region is done in "dma" below
+    .
+    dma  = 0     0x10000 rw
+    device = ic
+    device = console
+    device = ports
+    device = syscontroller
+    device = oscillator
+    .device
+	name = dma0
+	irq= 134
+	regs =
+	    0x1f811000 0x200 rwu
+	.
+	dma-cfgpg-position = 4
+    .
+.

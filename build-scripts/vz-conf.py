@@ -56,6 +56,8 @@ irq_emulator_list = []
 emulator_list = []
 __builtin__.vm7_is_absent = None
 
+global platform
+
 KB = 1024
 MB = (1024 * KB)
 
@@ -120,16 +122,13 @@ def parse_config(filename):
     #mpp2 = MyPrettyPrinter()
     #mpp2.pprint(configuration)
     #
-    # check VM DMA-capability, create IRQ list
+    # create IRQ list
     for vmid in configuration:
 	vm = configuration[vmid]
-	dmarequired = 0
 	if "device" in vm:
 	    irqs = [];
 	    emlist = {}
 	    for dev in vm["device"]:
-		if ("dma" in dev) and (dev["dma"] == '1'):
-		    dmarequired = 1
 		irqlist = []
 		if "irq" in dev:
 		    irqlist = dev["irq"].split()
@@ -147,11 +146,10 @@ def parse_config(filename):
 		    emulator_list.append(dev["emulator"])
 	    vm["irqlist"] = irqs
 	    vm["emlist"] = emlist
-	#print "dmarequired", dmarequired, " vmid", vm['id']
-	if dmarequired == 1:
-	    if ("dma" not in vm) or (vm["dma"] != '1'):
-		print "VM has DMA-capable device but not designated for VA=PA, vm =", vm["id"]
-		exit()
+    #
+    # check board specific
+    #
+    platform.board_parse_check(configuration)
     #
     # check IRQ uniq
     #
@@ -210,19 +208,9 @@ def check_uniq_address_range(vm):
 			print "10 Configuration file parse error, vm", vm["id"]
 			print "...address ranges overlap:",reg,reg2
 			exit(1)
-    for vm2id in configuration:
-	vm2 = configuration[vm2id]
-	if vm2 is vm:
-	    continue
-	if ("dma" in vm2) and (vm2["dma"] == '1'):
-	    if ("dma" in vm) and (vm["dma"] == '1'):
-		print "WARNING: Two VMs require DMA-compatible memory:",vm["id"], vm2["id"]
 
 
 def create_pte_list(vm):
-    dmarequired = 0
-    if ("dma" in vm) and (vm["dma"] == '1'):
-	dmarequired = 1
     pte = []
     # create a plain list of memory region tuples
     if "mmap" in vm:
@@ -232,9 +220,6 @@ def create_pte_list(vm):
 	    flags = block[2]
 	    physaddr = int(block[3],0)
 	    pte.append((addr, size, block[2], physaddr, None))
-	    if (dmarequired == 1) and (addr != physaddr) and ("d" not in flags):
-		print "VM has designated for DMA but VA != PA, vm =", vm["id"], "memblock ", block
-		exit(1)
     if "device" in vm:
 	for device in vm["device"]:
 	    if "regblock" in device:
@@ -891,6 +876,9 @@ parse_board("boards/" + sys.argv[1])
 parse_devicelib("device.lib")
 parse_config(sys.argv[2])
 
+#mpp = MyPrettyPrinter()
+#mpp.pprint(configuration)
+
 objcopy = []
 print "\nMEMORY MAPS:"
 for vmid in configuration:
@@ -969,10 +957,13 @@ for i in range(0, 8):
 	print >>ofile, "\t(struct cpte_nd *)&absent_vm_tlbtree,"
 print >>ofile, "};"
 # creat IC tables
+ofile.close()
 ofile = open("ic-tables.c","w")
 print >>ofile, '#include "ic.h"'
 print >>ofile, '#include "tlb.h"'
 print >>ofile, '#include "irq.h"'
 output_emulator_lists(ofile)
 platform.output_ic_tables(configuration,ofile)
-
+ofile.close()
+ofile = open("board_setup_tbl.c","w")
+platform.output_board_setup(configuration,ofile)

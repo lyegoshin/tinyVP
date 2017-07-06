@@ -9,4 +9,4 @@ vzdata =    0x80078000
 vzstacktop  =   0x80080000
 DEVCFG = boards/Microchip-DM320007+MEBII-DEVCFG.S
 DEVCFGADDR = 0x9FC0FFC0
-BOARDINIT = boards/Microchip-DM320007+MEBII-init.S
+BOARDINIT = boards/Microchip-DM320007+MEBII-init.S platforms/pic32mzef-setup.S

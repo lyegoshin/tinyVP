@@ -8,9 +8,24 @@
 .globl  _board_init_end
 
 _board_init:
-_board_init_end:
+	move    t8, ra
+	jal     _pic32mzef_unlock
+	 nop
+	jal     _pic32mzef_setup
+	 nop
+//        jal     _pic32mzef_lock  // - not yet, guest does it's own pin routing
+//         nop
 	// No clever color LEDs on board, so skip
-	jr  $31
+	move    ra, t8
+	jr  ra
+	 nop
+
+_board_init_end:
+	move    t8, ra
+//        jal     _pic32mzef_lock  // - not yet, guest does it's own pin routing
+//         nop
+	move    ra, t8
+	jr  ra
 	 nop
 
 .section .rodata

@@ -345,6 +345,10 @@ unsigned char str[128];
 	case _UART6_IRQ_RX:
 		uart_rx_irq(exfr, irq);
 		return;
+
+	case PIC32_IRQ_SB:
+		sba_irq();
+		return;
 	}
 
 	/* check for guest assignment */

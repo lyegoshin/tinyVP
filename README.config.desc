@@ -1,4 +1,4 @@
-    Configuration file parameters and rules
+    Configuration file parameters and rules (Reference)
 =================================================
 
 General Syntax:
@@ -22,8 +22,11 @@ Register and memory blocks flag letters:
     x                   - Executable
     i                   - write ignored
     s                   - shared between VMs
-    d                   - is not counted against DMA requirements
     e                   - emulated
+    u                   - uncached
+    n                   - cached (default)
+    a                   - cache write accelerated (not work with 'e')
+    t                   - cached, write-through (not work with 'e')
 
 -----------------------------------------------------------------------
 Semantics:
@@ -81,9 +84,15 @@ irq = irq1 irq2 ... irqN                - list of IRQs requested by VM
 irqpolling = 1                          - Flag which indicates that VM has no
 					  interrupt handlers
 
-dma = 1                                 - Flag which indicates that VM uses DMA
-					  Any piece of memory not indicated by
-					  flag 'd' must have vaddress = physaddress
+dma = address size flags                  (PIC32MZEF)
+					  Indicates that VM uses DMA and defines
+					  DMA-capable piece of memory.
+					  Address is virtual address and should be
+					  equal to physical address.
+					  This is used to configure System Bus
+					  Arbiter registers to restrict DMA to
+					  this zone. Size should be power of 2
+					  kilobytes and address must be aligned to size.
 
 device = devicename                     - include "devicename" description from
 					  library of devices "device.lib"
@@ -92,7 +101,24 @@ device = devicename                     - include "devicename" description from
 
   name = devicename                       - inside deviceblock - name of device
 
-  dma = 1                                 - inside deviceblock - DMA device
+  dma-cfgpg-position = bitposition        - (PIC32MZEF)
+					    Inside deviceblock - the position of
+					    Priviledge Group bits in CFGPG register
+					    for this DMA device. Configuration writes
+					    into this position the PG number of
+					    this VM. Need for guest DMA protection
+					    via System Bus permission capability.
+					    Microchip PIC32MZEF Family Data Sheet sections:
+						4.2-4.3 System Bus Arbitration
+						34.0 Special features
+
+  dma-set = Peripheral Set number         - (PIC32MZEF)
+					    Inside device - the number of Peripheral
+					    Set for this slave (non-DMA) device.
+					    Configuration uses this number to
+					    calculate which PS register in System
+					    Bus Arbiter can be used to configure
+					    DMA access to this device.
 
   irq = irq1 irq2 ... irqN                - inside deviceblock - list of IRQs
 					    used by device
@@ -132,15 +158,20 @@ DEVCFGADDR = 0x9FC0FFC0
     This is a way to define PIC32MZEF EFUSE board configurations (master clock
     parameters, EJTAG availability, flash protection etc). Without that magic
     4 word a pic32prog can't flash BOOT code into BFC00000.
+	File 'null.S' can be indicated if there is no needs for EFUSE setup.
 	It is recommended to take one of example. Address is predefined in
     PIC32MZEF SoC chip.
 
-BOARDINIT = boards/boardinitsourcecodefilename
+BOARDINIT = boards/boardinitsourcecodefilename.S platforms/pic32mzef-setup.S
 
     This is a module which is used for board initialization (pin/port routing,
     some perfipheral clocks setup, LED initialization etc).
 	It also contains the simple board-dependent functions which may indicate
     a boot progress/boot failure via LEDs, for exam.
+	File platforms/pic32mzef-setup.S has a simple unlock/setup/lock board
+    registers functions which can be used for PIC32MZEF. It can be replaced or
+    ommited if board register setup is undesirable, but it eliminates guest
+    DMA protection.
 
 rom = start-physaddress end-physaddress
 ram = start-physaddress end-physaddress
