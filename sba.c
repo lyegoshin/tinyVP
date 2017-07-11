@@ -1,8 +1,4 @@
 /*
- * Hardware register defines for Microchip PIC32MZ microcontroller.
- *
- * Copyright (C) 2013 Serge Vakulenko
- *
  * Permission to use, copy, modify, and distribute this software
  * and its documentation for any purpose and without fee is hereby
  * granted, provided that the above copyright notice appear in all
@@ -22,7 +18,7 @@
  * this software.
  *
  *
- * Copyright (C) 2017 Leonid Yegoshin (adaptation to ASM)
+ * Copyright (C) 2017 Leonid Yegoshin
  *
  *  System Bus Arbitration interrupt for access violations
  *
