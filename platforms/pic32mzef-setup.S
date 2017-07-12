@@ -48,6 +48,21 @@ _pic32mzef_unlock:
 	.globl  _pic32mzef_setup
 _pic32mzef_setup:
 
+	// Flash tuning
+
+	// switch on prefetcher for I-code and decrease number of wait states
+	li      a0, 0x12    // Enable I-prefetcher and set 2 clock Wait states
+	la      v0, PRECON
+	sw      a0, 0(v0)
+
+	// try to setup flash ECC for longer flash life
+	la      v0, CFGCON
+	lw      a0, 0(v0)
+	ori     a0, 0x30
+	xori    a0, 0x20    // clear Flash ECC control bits
+			    // and setup Dynamic ECC in Flash
+	sw      a0, 0(v0)
+
 	la      v0, board_setup_tbl
 1:
 	lw      a0, 0(v0)

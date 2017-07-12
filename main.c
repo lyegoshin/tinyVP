@@ -84,6 +84,7 @@ void    __main(/* void */ unsigned int a1, unsigned int a2, unsigned int a3, uns
 		*(volatile unsigned int*)0xbfc6FFC0, *(volatile unsigned int*)0xbfc6FFC4,
 		*(volatile unsigned int*)0xbfc6FFC8, *(volatile unsigned int*)0xbfc6FFCC,
 		*(volatile unsigned int*)0xbfc6FF7C, *(volatile unsigned int*)0xbfc6FFFC);
+	printf("PRECON=%08x PRESTAT=%08x\n",*(volatile unsigned int*)PRECON, *(volatile unsigned int*)PRESTAT);
 	printf("PMD1=%08x, PMD2=%08x, PMD3=%08x\n",
 		*(volatile unsigned int*)0xbf800040, *(volatile unsigned int*)0xbf800050,
 		*(volatile unsigned int*)0xbf800060);
