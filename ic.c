@@ -325,6 +325,9 @@ unsigned char str[128];
 
 	switch (irq) {
 	case _TIMER_IRQ:
+		/* kill spurious IRQ (_TIMER_IRQ == 0) */
+		if (!(read_cp0_cause() & CP0_CAUSE_TI))
+			return;
 		time_irq(exfr, irq);
 		return;
 
