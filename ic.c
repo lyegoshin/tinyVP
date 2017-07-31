@@ -323,6 +323,8 @@ void do_IRQ(struct exception_frame *exfr)
 
 unsigned char str[128];
 
+	need_time_update = 1;
+
 	switch (irq) {
 	case _TIMER_IRQ:
 		/* kill spurious IRQ (_TIMER_IRQ == 0) */

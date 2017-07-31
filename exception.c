@@ -34,8 +34,6 @@ unsigned int reschedule_vm;
 
 char panicbuf[128];
 
-extern volatile unsigned long long current_wall_time;
-
 void panic_thread(struct exception_frame *a0, char *message);
 
 unsigned long gpr_read(struct exception_frame *exfr, unsigned int rt)
@@ -271,7 +269,7 @@ static void do_dsp(struct exception_frame *exfr)
 	restore_dsp_regs();
 }
 
-int recalculate_late_timer(unsigned long long gcount)
+static int recalculate_late_timer(unsigned long long gcount)
 {
 	if ((long long)(current_lcount + current->cp0_gtoffset - gcount) >
 	    (long long)0x0LL) {

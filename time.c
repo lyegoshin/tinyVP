@@ -26,6 +26,7 @@
 #include    "irq.h"
 #include    "ic.h"
 #include    "time.h"
+#include    "thread.h"
 #include    <limits.h>
 
 /* TEMPORARY */
@@ -37,52 +38,53 @@ volatile unsigned long long current_lcount;
 unsigned long long initial_wall_time;
 volatile unsigned long long current_wall_time;
 
+int need_time_update = 0;
+
 static struct timer timer_array[MAX_NUM_GUEST + 1];
 static struct timer timerQ = {
     .next = &timerQ,
 };
 
+
 static unsigned long long time_get_lcount(void)
 {
-	unsigned int ie;
 	unsigned int count;
 
-	im_up(ie);
 	count  = read_cp0_count();
 //        count -= time_clock_adjust_current;
-	im_down(ie);
 
 	return time_extend_count(current_lcount,count);
 }
 
 static void time_set_timer(struct timer *timer)
 {
-	unsigned int ie;
 	unsigned long long lcnt;
 	unsigned long long lcount;
 
-	im_up(ie);
 	lcnt = time_get_lcount();
 	lcount = timer->lcount;
 	if ((long long)(lcount - lcnt) < 100)
 		lcount = lcnt + 100;
 	write_cp0_compare((unsigned int)lcount /* + time_clock_adjust_current */);
 	ehb();
-	im_down(ie);
 }
 
 void time_update_wall_time(void)
 {
+	unsigned int ie;
 	unsigned long long lclock;
 	unsigned long long lclock_delta;
 	/* minimum CPU frequency is around 20MHz to avoid exceeding 32bits */
 	unsigned long long time_delta;
 
+	im_up(ie);
 	lclock = time_get_lcount();
 	lclock_delta = lclock - current_lcount;
 	current_lcount = lclock;
 	time_delta = lclock_delta * clock_time_multiplier;
 	current_wall_time = current_wall_time + time_delta;
+	need_time_update = 0;
+	im_down(ie);
 }
 
 static void time_insert_timer(struct timer *timer)
@@ -130,11 +132,9 @@ static void handle_event(struct exception_frame *exfr, struct timer *timer)
 	void (*func)(void);
 
 	if (timer->flag & TIMER_FLAG_TICK) {
-		if (++timer->cnt >= TIMER_TICKS_SECOND) {
-			timer->cnt = 0;
-			/* call to scheduler */
-			reschedule(exfr);
-		}
+		timer->cnt = 0;
+		/* call to scheduler */
+		reschedule(exfr);
 	} else {
 		if (timer->flag & TIMER_FLAG_FUNC) {
 			func = (void *)timer->cnt;
@@ -155,6 +155,8 @@ void timer_request(struct timer *timer, unsigned long long delay,
 {
 	unsigned int ie;
 
+	if (need_time_update)
+		time_update_wall_time();
 	timer->time = current_wall_time + delay;
 	if (func) {
 		timer->flag |= TIMER_FLAG_FUNC;
@@ -172,6 +174,8 @@ void timer_g_irq_reschedule(unsigned int timerno, unsigned long long clock)
 	unsigned int ie;
 	struct timer *timer;
 
+	if (need_time_update)
+		time_update_wall_time();
 	im_up(ie);
 	timer = &timer_array[timerno];
 	timer->flag |= TIMER_FLAG_TIMER_IRQ|TIMER_FLAG_COUNT;
@@ -189,6 +193,8 @@ int time_irq(struct exception_frame *exfr, unsigned int irq)
 int many = 0;
 	if (irq != _TIMER_IRQ)
 		return 0;
+
+	/* IRQ disabled here... */
 
 	irq_ack(irq);
 	time_update_wall_time();
@@ -238,6 +244,8 @@ int init_time()
 	unsigned int freq;
 	unsigned int multiplier;
 	struct timer *timer;
+
+	/* IRQ disabled here... */
 
 	freq = cpu_get_frequency();
 

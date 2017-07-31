@@ -138,40 +138,6 @@ cacheerr:
 	b       cacheerr
 	 nop
 
-.type wait, @function
-	.globl  wait
-wait:
-	addiu   sp, -(6 * 4)
-	sw      ra, 16(sp)
-	addiu   v0, $0, -1
-	mfc0    a0, CP0_CONTEXT
-	ins     a0, v0, 31, 1
-	mtc0    a0, CP0_CONTEXT
-1:
-	di
-	ehb
-	lw      a0, reschedule_flag
-	bnez    a0, 2f
-	 nop
-	syscall 0xf0000
-	lw      a0, reschedule_flag
-	bnez    a0, 2f
-	 nop
-	wait
-	ei
-	b       1b
-	 ehb
-2:
-	lui     at, %hi(reschedule_flag)
-	sw      $0, %lo(reschedule_flag)(at)
-	mfc0    a0, CP0_CONTEXT
-	ins     a0, $0, 31, 1
-	mtc0    a0, CP0_CONTEXT
-	lw      ra, 16(sp)
-	addiu   sp, 6 * 4
-	jr.hb   ra
-	 ei
-
 // ==================================================
 
 	.org    BOOTOFFSET + 0x180
@@ -726,6 +692,50 @@ _clear_g_ll_cont:
 
 // ==============================================
 
+.type wait, @function
+	.globl  wait
+
+	.set push
+	.set noreorder
+	.set noat
+wait:
+	addiu   sp, -(6 * 4)
+	sw      ra, 16(sp)
+	addiu   v0, $0, -1
+	mfc0    a0, CP0_CONTEXT
+	ins     a0, v0, 31, 1
+	mtc0    a0, CP0_CONTEXT
+1:
+	di
+	ehb
+	lw      a0, reschedule_flag
+	bnez    a0, 2f
+	 nop
+	syscall 0xf0000
+	lw      a0, reschedule_flag
+	bnez    a0, 2f
+	 nop
+	wait
+	ei
+	b       1b
+	 ehb
+2:
+	lui     at, %hi(reschedule_flag)
+	sw      $0, %lo(reschedule_flag)(at)
+	mfc0    a0, CP0_CONTEXT
+	ins     a0, $0, 31, 1
+	mtc0    a0, CP0_CONTEXT
+	lw      ra, 16(sp)
+	lui     at, %hi(need_time_update)
+	sw      ra, %lo(need_time_update)(at)
+	addiu   sp, 6 * 4
+	jr.hb   ra
+	 ei
+
+	.set pop
+
+// ==============================================
+
 .type __start, @function
 .org    BOOTOFFSET + 0x1000
 .globl __start
@@ -809,3 +819,4 @@ __start:
 	la    $25, __main
 	jr    $25
 	 nop
+.set pop

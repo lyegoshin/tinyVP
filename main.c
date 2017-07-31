@@ -15,8 +15,6 @@
 //unsigned short const console_irq_tx;
 //unsigned short const console_irq_rx;
 
-extern volatile unsigned long long current_wall_time;
-
 struct timer tmp_timer;
 
 void    tmp_prt(void)
@@ -24,11 +22,10 @@ void    tmp_prt(void)
 	register unsigned long sp __asm__("$29");
 	register unsigned long ra __asm__("$31");
 	static int cnt = 0;
-	unsigned long *p = (unsigned long*)&current_wall_time;
 char str[128];
 sprintf(str,"\nStatus=0x%08x, Cause=0x%08x sp=%08x ra=%08x\n",read_cp0_status(),read_cp0_cause(),sp,ra);
 uart_writeline(console_uart, str);
-	printf("|------- [%T] --------|\n",current_wall_time);
+	printf("|------- [%T] --------|\n",get_wall_time());
 	timer_request(&tmp_timer, TIME_SECOND*2, tmp_prt);
 }
 
@@ -155,7 +152,7 @@ uart_start_console();
 uart_start_console();
 
 	do {
-//                printf("-------- [%T] ---------\n",current_wall_time);
+//                printf("-------- [%T] ---------\n",get_wall_time());
 //                uart_writeline(console_uart, "-----------------\n");
 		if (!once++)
 			timer_request(&tmp_timer, TIME_SECOND, tmp_prt);

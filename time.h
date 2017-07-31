@@ -45,7 +45,7 @@ struct timer {
 #define TIMER_FLAG_TIMER_IRQ    0x8
 #define TIMER_FLAG_COUNT        0x10
 
-#define TIMER_TICKS_SECOND      (100)
+#define TIMER_TICKS_SECOND      (1)
 #define TIMER_TICK              (TIME_SECOND/TIMER_TICKS_SECOND)
 
 static unsigned long long time_extend_count(unsigned long long base,
@@ -59,7 +59,19 @@ static unsigned long long time_extend_count(unsigned long long base,
 void timer_request(struct timer *timer, unsigned long long delay,
 	   void (*func)(void));
 void timer_g_irq_reschedule(unsigned int timerno, unsigned long long clock);
+void time_update_wall_time(void);
 
 extern volatile unsigned long long current_lcount;
+extern int need_time_update;
+
+static inline unsigned long long get_wall_time(void)
+{
+	extern volatile unsigned long long current_wall_time;
+
+	if (need_time_update)
+		time_update_wall_time();
+	return current_wall_time;
+}
+
 
 #endif
