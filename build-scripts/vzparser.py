@@ -221,6 +221,26 @@ def parse_mmap(f, mmap):
 	    exit(1)
     return mmap
 
+def parse_setup(f,address):
+    values = []
+    addr = int(address,0)
+    for line in f:
+	# First, remove comments:
+	if COMMENT_CHAR in line:
+	    # split on comment char, keep only the part before
+	    line, comment = line.split(COMMENT_CHAR, 1)
+	line = line.strip()
+	if line == '':
+	    continue
+	if line == ".":
+	    return values
+	linevalues = line.split()
+	for value in linevalues:
+	    setup = (addr, value)
+	    addr += 4
+	    values.append(setup)
+    return values
+
 def parse_vm(f, vm, stage):
     for line in f:
 	# First, remove comments:
@@ -293,6 +313,19 @@ def parse_vm(f, vm, stage):
 		    print "102 Configuration file parse error - duplicate 'elf/'binary', line ", lline
 		    exit(1)
 		vm["file"] = value
+	    elif key == "setup":
+		address, data = value.split()
+		setup = (int(address,0), data)
+		if "setup" in vm:
+		    vm["setup"].extend(setup)
+		else:
+		    vm["setup"] = [setup,]
+	    elif key == ".setup":
+		setup = parse_setup(f,value)
+		if "setup" in vm:
+		    vm["setup"].extend(setup)
+		else:
+		    vm["setup"] = setup
 	    else:
 		vm[key] = value
 	else:

@@ -254,6 +254,13 @@ def output_board_setup(configuration,ofile):
     size = {}
     dmaset = {}
     for vmid in sorted(configuration):
+	vm = configuration[vmid]
+	if "setup" in vm:
+	    for pair in vm["setup"]:
+		# convert physaddr into kernel VA
+		npair = ((pair[0]|0x80000000),pair[1])
+		print >>ofile, "\t0x%08x, %s," % npair
+	    print >>ofile, ""
 	# vm0 has no IC emulation
 	if vmid == 0:
 	    continue
@@ -393,5 +400,5 @@ def output_board_setup(configuration,ofile):
     #
     #   End of board register configuration list
     #
-    print >>ofile, "\t0, \t// STOP"
+    print >>ofile, "\n\t0, \t// STOP"
     print >>ofile, "};"

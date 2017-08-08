@@ -133,6 +133,22 @@ device = devicename                     - include "devicename" description from
 					    emulator. Requires emulator in tinyVP
 					    Ex: console, ic_emulator
 
+setup = address value                     - (PIC32MZEF)
+					    At tinyVP start, after unlocking
+					    board registers, 'value' is written
+					    into 'address'. Parameter can be
+					    repeated.
+
+.setup = address                          - (PIC32MZEF)
+					    The same as 'setup' parameter but
+					    opens an easy multivalue block,
+					    ending by '.' line
+
+    value value value...                    - inside '.setup' block.
+					      Values are written to board regs
+					      starting from 'address'.
+					      Line can be repeated.
+
 -----------------------------------------------------------------------
 
     Board configuration file description
