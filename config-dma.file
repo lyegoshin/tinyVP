@@ -21,5 +21,6 @@
 	    0x1f811000 0x200 rwu
 	.
 	dma-cfgpg-position = 4
+	pmd7 = 4
     .
 .

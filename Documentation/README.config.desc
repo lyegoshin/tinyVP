@@ -133,6 +133,15 @@ device = devicename                     - include "devicename" description from
 					    emulator. Requires emulator in tinyVP
 					    Ex: console, ic_emulator
 
+  pmd1 (to pmd7) = bit position           - (PIC32MZEF)
+					    set bit position of some Power
+					    Management Disable register which
+					    controls OFF state of device.
+					    This bit is excluded from PMD
+					    configuration and device is kept ON
+					    See "pmd-registers-base" in board
+					    configuration file below.
+
 setup = address value                     - (PIC32MZEF)
 					    At tinyVP start, after unlocking
 					    board registers, 'value' is written
@@ -233,3 +242,13 @@ vzdata =    0x80078000
 vzstacktop  =   0x80080000
 
     End address of tinyVP data section in RAM - stack top
+
+pmd-registers-base = value1 value2 ... value 7
+
+    PIC32MZEF only.
+    Provide a pattern of 7 Power Management Disable registers for this board.
+    Each bit can switch OFF some board device. All usable devices can be set
+    here, the appropriate parameter "pmd1" to "pmd7" in device configuration
+    excludes that device from this pattern and keeps it ON.
+    Note: don't forget to remove a tinyVP console UART and another emulated
+    devices from this bit pattern, emulated devices has no pmd* parameter.

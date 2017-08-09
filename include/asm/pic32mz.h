@@ -218,6 +218,17 @@
  */
 #define PIC32_R(a)              (0xBF800000 + (a))
 
+/*
+ *  Power management registers
+ */
+#define PMD1            PIC32_R (0x0040)
+#define PMD2            PIC32_R (0x0050)
+#define PMD3            PIC32_R (0x0060)
+#define PMD4            PIC32_R (0x0070)
+#define PMD5            PIC32_R (0x0080)
+#define PMD6            PIC32_R (0x0090)
+#define PMD7            PIC32_R (0x00A0)
+
 /*--------------------------------------
  * Port A-K registers.
  */

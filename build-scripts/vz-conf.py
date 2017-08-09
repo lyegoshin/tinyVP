@@ -878,7 +878,7 @@ def output_tlb_tables(vm, ofile):
 
 sys.path.append("platforms")
 platform = importlib.import_module(sys.argv[3])
-parse_board("boards/" + sys.argv[1])
+parse_board("boards/" + sys.argv[1], platform)
 parse_devicelib("device.lib")
 parse_config(sys.argv[2])
 

@@ -35,6 +35,7 @@
 	0x1f822000 0x100 rwu
     .
     dma-set = 2
+    pmd5 = 0
 .
 
 .device

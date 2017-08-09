@@ -382,7 +382,7 @@ def parse_config_file(filename, stage):
     f.close()
     return vm
 
-def parse_board(arg):
+def parse_board(arg,platform):
     global romaddress, romend, ramaddress, ramend, eretpage, vzcode, vzentry, vzdata, vzstacktop
     f = open(arg)
     for line in f:
@@ -399,20 +399,24 @@ def parse_board(arg):
 		romaddress, romend = value.split()
 		romaddress = int(romaddress,0)
 		romend = int(romend,0)
-	    if key == "ram":
+	    elif key == "ram":
 		ramaddress, ramend = value.split()
 		ramaddress = int(ramaddress,0)
 		ramend = int(ramend,0)
-	    if key == "eret_page":
+	    elif key == "eret_page":
 		eretpage = int(value,0)
-	    if key == "vzcode":
+	    elif key == "vzcode":
 		vzcode = int(value,0)
-	    if key == "vzentry":
+	    elif key == "vzentry":
 		vzentry = int(value,0)
-	    if key == "vzdata":
+	    elif key == "vzdata":
 		vzdata = int(value,0)
-	    if key == "vzstacktop":
+	    elif key == "vzstacktop":
 		vzstacktop = int(value,0)
+	    else:
+		platform.parse_board_file_key(f, key, value)
+	else:
+	    platform.parse_board_file_line(f, line)
     f.close()
 
 def kphys(arg):

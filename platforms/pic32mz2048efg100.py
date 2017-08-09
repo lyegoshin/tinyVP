@@ -31,6 +31,19 @@ import sys
 import math
 import __builtin__
 
+pmd = []
+
+def parse_board_file_key(f, key, value):
+    if key == "pmd-registers-base":
+	pmdtext = value.split()
+	for p in pmdtext:
+	    i = int(p,0)
+	    pmd.append(i)
+
+def parse_board_file_line(f, line):
+    # currently no option lines without '=' due to "make"
+    return
+
 def board_parse_check(configuration):
     # check VM DMA-capability
     dmaset = {}
@@ -261,6 +274,23 @@ def output_board_setup(configuration,ofile):
 		npair = ((pair[0]|0x80000000),pair[1])
 		print >>ofile, "\t0x%08x, %s," % npair
 	    print >>ofile, ""
+	if "device" in vm:
+	    for dev in vm["device"]:
+		# adjust Power Managment Disable registers value
+		if "pmd1" in dev:
+		    pmd[0] = pmd[0] & ~(1 << int(dev["pmd1"],0))
+		if "pmd2" in dev:
+		    pmd[1] = pmd[1] & ~(1 << int(dev["pmd2"],0))
+		if "pmd3" in dev:
+		    pmd[2] = pmd[2] & ~(1 << int(dev["pmd3"],0))
+		if "pmd4" in dev:
+		    pmd[3] = pmd[3] & ~(1 << int(dev["pmd4"],0))
+		if "pmd5" in dev:
+		    pmd[4] = pmd[4] & ~(1 << int(dev["pmd5"],0))
+		if "pmd6" in dev:
+		    pmd[5] = pmd[5] & ~(1 << int(dev["pmd6"],0))
+		if "pmd7" in dev:
+		    pmd[6] = pmd[6] & ~(1 << int(dev["pmd7"],0))
 	# vm0 has no IC emulation
 	if vmid == 0:
 	    continue
@@ -398,7 +428,26 @@ def output_board_setup(configuration,ofile):
     #       Configure CFGPG
     print >>ofile, "\n\tCFGPG,  0x%08x,\n" % (cfgpg)
     #
+    #       Configure PMD (Power Management Disable)
+    for i in range(0,len(pmd)):
+	if i == 0:
+	    print >>ofile, "\tPMD1, 0x%08x, \t// ADC, CVref" % (pmd[i])
+	if i == 1:
+	    print >>ofile, "\tPMD2, 0x%08x, \t// Comparators" % (pmd[i])
+	if i == 2:
+	    print >>ofile, "\tPMD3, 0x%08x, \t// Input Capture, Output Compare" % (pmd[i])
+	if i == 3:
+	    print >>ofile, "\tPMD4, 0x%08x, \t// Timers" % (pmd[i])
+	if i == 4:
+	    print >>ofile, "\tPMD5, 0x%08x, \t// UART, SPI, I2C, USB, CAN" % (pmd[i])
+	if i == 5:
+	    print >>ofile, "\tPMD6, 0x%08x, \t// REFCLK, PMP, EBI, SQI, Eth" % (pmd[i])
+	if i == 6:
+	    print >>ofile, "\tPMD7, 0x%08x, \t// DMA, Random, Crypto" % (pmd[i])
+    if len(pmd) != 0:
+	print >>ofile, ""
+    #
     #   End of board register configuration list
     #
-    print >>ofile, "\n\t0, \t// STOP"
+    print >>ofile, "\t0, \t// STOP"
     print >>ofile, "};"
