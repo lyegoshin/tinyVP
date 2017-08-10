@@ -665,12 +665,15 @@ def output_el01(pte, ofile, flag):
 	    hwb |= 0x8
 	else:
 	    hwb |= 0x18
-	if "i" in pte[2]:
-	    hwb |= 0x1
-	elif "w" in pte[2]:
-	    hwb |= 0x4
 	if not "e" in pte[2]:
 	    hwb |= 0x2
+	if "i" in pte[2]:
+	    hwb |= 0x1
+	elif 'I' in pte[2]:
+	    hwb |= 0x5
+	    hwb &= ~0x2  # cancel Valid
+	elif "w" in pte[2]:
+	    hwb |= 0x4
 	if not "x" in pte[2]:
 	    hwb |= 0x40000000
 	if not "r" in pte[2]:
@@ -693,12 +696,15 @@ def output_el01(pte, ofile, flag):
 	    hwb |= 0x8
 	else:
 	    hwb |= 0x18
-	if "i" in pte[3]:
-	    hwb |= 0x1
-	elif "w" in pte[3]:
-	    hwb |= 0x4
 	if not "e" in pte[3]:
 	    hwb |= 0x2
+	if "i" in pte[3]:
+	    hwb |= 0x1
+	elif 'I' in pte[3]:
+	    hwb |= 0x5
+	    hwb &= ~0x2  # cancel Valid
+	elif "w" in pte[3]:
+	    hwb |= 0x4
 	if not "x" in pte[3]:
 	    hwb |= 0x40000000
 	if not "r" in pte[3]:

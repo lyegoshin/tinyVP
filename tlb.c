@@ -127,19 +127,20 @@ int     decode_exception_instruction(struct exception_frame *exfr,
 	case lw_op:
 		return -4;
 	case sb_op:
-		ret = 1;
+		ret = 8;
 		break;
 	case sh_op:
-		ret = 2;
+		ret = 16;
 		break;
 	case sw_op:
-		ret = 4;
+		ret = 32;
 		break;
 	default:
 		return  0;
 	}
-	*value = gpr_read(exfr, rt);
-	return  ret;
+	rt = gpr_read(exfr, rt);
+	*value = (rt << (32 - ret)) >> (32 - ret);
+	return  ret/8;
 }
 
 int     emulate_rw(struct exception_frame *exfr, unsigned long address, unsigned long ELo)
@@ -151,8 +152,13 @@ int     emulate_rw(struct exception_frame *exfr, unsigned long address, unsigned
 	unsigned int ie;
 
 	opcode = GET_INST_OPCODE(exfr->cp0_badinst);
-	if ((ELo & ENTRYLO_SW_I) && IS_STORE_INST(opcode))
+	if ((ELo & ENTRYLO_SW_I) && IS_STORE_INST(opcode)) {
+		if (ELo & ENTRYLO_D) {
+			rt = decode_exception_instruction(exfr, &gpr);
+			printf("Guest%d: write %x (%d bytes) to %08x ignored\n", current->vmid, gpr, rt, address);
+		}
 		return 1;
+	}
 	rt = GET_INST_RT(exfr->cp0_badinst);
 	vaddr = map_tmp_address(&ie, address, ELo);
 
@@ -287,24 +293,25 @@ skip_sw_search:
 					   badvaddr, &offset, &ELo, PAGEMASK_MIN);
 
 	// start emulation here, cpte_double_leaf is available
-	if (((struct cpte_dl *)cpte)->bm && !(((struct cpte_dl*)cpte)->f)) {
-		bitmask = ((struct cpte_dl *)cpte)->bm;
-		bit = GETBIT(bitmask, offset/4);    // convert byte offset to word
+	if (!(((struct cpte_dl*)cpte)->f)) {
+		if (((struct cpte_dl *)cpte)->bm) {
+			bitmask = ((struct cpte_dl *)cpte)->bm;
+			bit = GETBIT(bitmask, offset/4);    // convert byte offset to word
+		} else if ((ELo ^ ENTRYLO_V) & (ENTRYLO_SW_I | ENTRYLO_V))
+			bit = 1;
 		if (bit) {
 			if (!emulate_rw(exfr, address, ELo))
 				goto bad_area;  // something wrong: LWR/SWL/LWC1/SDC1/LL
 			compute_return_epc(exfr);
 			return;
 		}
-	}
-
-	// here should be a real emulation of device. CPTE - only bm can be used
-	if (((struct cpte_dl*)cpte)->f) {
-	    i = decode_exception_instruction(exfr, &value);
-	    if (((struct cpte_dl*)cpte)->f(exfr, cpte, pagemask, address, ELo, i, value)) {
-		compute_return_epc(exfr);
-		return;
-	    }
+	} else {
+		// here should be a real emulation of device. CPTE - only bm can be used
+		i = decode_exception_instruction(exfr, &value);
+		if (((struct cpte_dl*)cpte)->f(exfr, cpte, pagemask, address, ELo, i, value)) {
+		    compute_return_epc(exfr);
+		    return;
+		}
 	}
 
 bad_area:   ;

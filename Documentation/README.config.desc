@@ -21,6 +21,10 @@ Register and memory blocks flag letters:
     w                   - Write
     x                   - Executable
     i                   - write ignored
+    I                   - write ignored but print it on console
+			    it's intended for initial setup only, to find guest
+			    port/pins setup in multi-guest configurations
+			    and do this setup by root to protect ports
     s                   - shared between VMs
     e                   - emulated
     u                   - uncached

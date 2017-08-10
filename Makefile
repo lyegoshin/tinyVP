@@ -6,7 +6,7 @@ SOURCE = main.c uart.c printf.c ic.c sba.c log.c strlen.c time.c exception.c \
 GENERATED_SOURCE = pte.c ic-tables.c
 
 maps:
-	build-scripts/vz-map.py $(BOARD) $(CONFIG)
+	build-scripts/vz-map.py $(BOARD) $(CONFIG) $(PLATFORM)
 
 build:  $(SOURCE) $(DEVCFG) boards/$(BOARD) $(CONFIG) $(BOARDINIT)
 	build-scripts/vz-conf.py $(BOARD) $(CONFIG) $(PLATFORM)
