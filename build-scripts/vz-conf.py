@@ -445,12 +445,15 @@ def split_ptes(vm):
 def split_page(pte):
     ptetree = []
     size = pte[1] / 4
+    flag = pte[2]
+    if size < basepagesize:
+	flag += "e"
     addr = pte[0]
     paddr = pte[3]
-    ptetree.append((addr, size, pte[2], pte[2], paddr, paddr + size, pte[4], pte[5]))
+    ptetree.append((addr, size, flag, flag, paddr, paddr + size, pte[4], pte[5]))
     addr += size * 2
     paddr += size * 2
-    ptetree.append((addr, size, pte[2], pte[2], paddr, paddr + size, pte[4], pte[5]))
+    ptetree.append((addr, size, flag, flag, paddr, paddr + size, pte[4], pte[5]))
     return ptetree
 
 def address_alignment_check(addr, size, physaddr):
@@ -471,6 +474,7 @@ def join_pairs(vm):
 	    if (pte[0] % (2 * pte[1])) == 0:
 		# first page in pair
 		ptesave = pte
+		lastaddr = pte[0] + pte[1]
 		continue
 	    # second page. Check that first is empty
 	    if lastaddr + pte[1] <= pte[0]:
@@ -528,8 +532,10 @@ def join_pairs(vm):
 	    ptesave = pte
 	    continue
 	# second page
-	ptetree.append((pte[0] - pte[1], pte[1], None, pte[2], None, pte[3], pte[4], join_bitmask(None,0,pte[5],pte[1])))
+	#*** split it! if it is close (in the same pair w 1st - actually, just not compatible)
 	lastaddr = pte[0] + pte[1]
+	ptea = split_page(pte)
+	ptetree.extend(ptea)
 	continue
     if ptesave is not None:
 	# it is a first page
