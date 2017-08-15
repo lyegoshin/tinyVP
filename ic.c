@@ -317,127 +317,14 @@ int execute_IRQ(struct exception_frame *exfr, unsigned int irq, unsigned int ipl
 	return 0;
 }
 
-// select a highest IPL IRQ from word
-unsigned int pickup_word_irq(unsigned int word, unsigned int irqoff,
-			     unsigned int *tipl)
-{
-	int irq0 = -1;
-	int ipl0 = -1;
-	int ipl;
-	int irq;
-	int i;
-	unsigned int irqw;
-	unsigned int va;
-	unsigned int mask;
-	unsigned int shift;
-
-	ipl0 = *tipl;
-	while ((i=clz(word)) < 32) {
-		i = 31 - i;
-		irqw = 1 << i;
-		word ^= irqw;
-
-		irq = irqoff + i;
-
-		va = KPHYS(ic_ipc(irq, &mask, &shift));
-		ipl = ((*(unsigned int*)va) & mask) >> (shift + 2); // IRQ CPU IPL
-		if (ipl > ipl0) {
-			irq0 = irq;
-			ipl0 = ipl;
-		}
-	}
-
-	if (irq0 >= 0)
-		*tipl = ipl0;
-	return irq0;
-}
-
-unsigned int read_ic_irq(unsigned int tipl0)
-{
-	volatile unsigned int *ifsp;
-	volatile unsigned int *iecp;
-	int irq0;
-	int irq;
-	unsigned int word;
-	int *tipl;
-
-	ifsp = IC_IFS - 16;  // IFS"-1", previous word to IFS, plus CLR/SET/INV
-	iecp = IC_IEC - 16;
-	irq0 = -1;
-
-	/* word 0 */
-	if ((word = ((*++ifsp) & (*++iecp)))) {
-		irq = pickup_word_irq(word, 0, tipl);
-		if ((irq >= 0) && (*tipl > tipl0)) {
-			tipl0 = *tipl;
-			irq0 = irq;
-		}
-	}
-	/* word 1 */
-	if ((word = ((*++ifsp) & (*++iecp)))) {
-		irq = pickup_word_irq(word, 32, tipl);
-		if ((irq >= 0) && (*tipl > tipl0)) {
-			tipl0 = *tipl;
-			irq0 = irq;
-		}
-	}
-	/* word 2 */
-	if ((word = ((*++ifsp) & (*++iecp)))) {
-		irq = pickup_word_irq(word, 64, tipl);
-		if ((irq >= 0) && (*tipl > tipl0)) {
-			tipl0 = *tipl;
-			irq0 = irq;
-		}
-	}
-	/* word 3 */
-	if ((word = ((*++ifsp) & (*++iecp)))) {
-		irq = pickup_word_irq(word, 96, tipl);
-		if ((irq >= 0) && (*tipl > tipl0)) {
-			tipl0 = *tipl;
-			irq0 = irq;
-		}
-	}
-	/* word 4 */
-	if ((word = ((*++ifsp) & (*++iecp)))) {
-		irq = pickup_word_irq(word, 128, tipl);
-		if ((irq >= 0) && (*tipl > tipl0)) {
-			tipl0 = *tipl;
-			irq0 = irq;
-		}
-	}
-	/* word 5 */
-	if ((word = ((*++ifsp) & (*++iecp)))) {
-		irq = pickup_word_irq(word, 160, tipl);
-		if ((irq >= 0) && (*tipl > tipl0)) {
-			tipl0 = *tipl;
-			irq0 = irq;
-		}
-	}
-	/* word 6 */
-	if ((word = ((*++ifsp) & (*++iecp)))) {
-		irq = pickup_word_irq(word, 192, tipl);
-		if ((irq >= 0) && (*tipl > tipl0)) {
-			tipl0 = *tipl;
-			irq0 = irq;
-		}
-	}
-
-	if (irq0 >= 0)
-		return irq0;
-
-	return -1;
-}
-
 void do_IRQ(struct exception_frame *exfr)
 {
 	unsigned int irq = (*IC_INTSTAT) & IC_INTSTAT_SIRQ_MASK;
-	unsigned int ripl;
 
 unsigned char str[128];
 
 	need_time_update = 1;
 
-loop:
 	switch (irq) {
 	case _TIMER_IRQ:
 		/* kill spurious IRQ (_TIMER_IRQ == 0) */
@@ -470,21 +357,13 @@ loop:
 	}
 
 	/* check for guest assignment */
-	if (!execute_IRQ(exfr, irq, get__ipl(read_cp0_viewripl()))) {
+	if (execute_IRQ(exfr, irq, get__ipl(read_cp0_viewripl())))
+		return;
 
 sprintf(str, "do_IRQ: mask unexpect irq %d\n", irq);
 uart_writeline(console_uart, str);
-		/* mask unexpect interrupt forever */
-		irq_mask(irq);
-	}
-
-	if (ripl = read_cp0_viewripl()) {
-		irq = read_ic_irq(0);
-		if (irq >= 0)
-			goto loop;
-sprintf(str, "do_IRQ: unexpected VIEWRIPL %08x\n", ripl);
-uart_writeline(console_uart, str);
-	}
+	/* mask unexpect interrupt forever */
+	irq_mask(irq);
 }
 
 void init_IRQ(void)
