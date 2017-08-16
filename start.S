@@ -236,8 +236,8 @@ IRQ_entry_continue:
 	mtc0    k1, CP0_GUESTCTL0
 	sw      k0, PTR_CP0_EPC + ARGS_FRAME_SIZE(sp)
 	mfc0    k0, CP0_STATUS
-	mfc0    k1, CP0_RIPL        // !!!!
-	mtc0    k1, CP0_IPL         // !!!!
+//        mfc0    k1, CP0_RIPL        // !!!!
+//        mtc0    k1, CP0_IPL         // !!!!
 	ehb
 	mfc0    k1, CP0_SRSCTL
 	sw      k1, PTR_CP0_SRSCTL + ARGS_FRAME_SIZE(sp)
@@ -313,8 +313,8 @@ IRQ_wait_entry:         // k1 - GuestCtl0
 // save critical registers while interrupt disabled
 	move    t4, k1          // CP0_GUESTCTL0
 	mfc0    t5, CP0_STATUS
-	mfc0    k0, CP0_RIPL            // !!!!
-	mtc0    k0, CP0_IPL             // !!!!
+//        mfc0    k0, CP0_RIPL            // !!!!
+//        mtc0    k0, CP0_IPL             // !!!!
 	ehb
 	ins     k1, $0, CP0_GUESTCTL0_GM, 1
 	mtc0    k1, CP0_GUESTCTL0   // clear guest flag
@@ -410,8 +410,8 @@ EXC_entry_continue:
 	mfc0    k1, CP0_SRSCTL
 	sw      k1, PTR_CP0_SRSCTL + ARGS_FRAME_SIZE(sp)
 	mfc0    k0, CP0_STATUS
-	mfc0    k1, CP0_RIPL            // !!!!
-	mtc0    k1, CP0_IPL             // !!!!
+//        mfc0    k1, CP0_RIPL            // !!!!
+//        mtc0    k1, CP0_IPL             // !!!!
 	ehb
 	lui     k1, %hi(CP0_STATUS_CU0)
 	addiu   k1, CP0_STATUS_MODE | CP0_STATUS_EXL | CP0_STATUS_IE
@@ -462,8 +462,8 @@ EXC_wait_entry:         // k1 - GuestCtl0
 	mfc0    t8, CP0_NESTED_EPC
 	mfc0    t9, CP0_NESTED_EXC
 	mfc0    t3, CP0_STATUS
-	mfc0    k0, CP0_RIPL            // !!!!
-	mtc0    k0, CP0_IPL             // !!!!
+//        mfc0    k0, CP0_RIPL            // !!!!
+//        mtc0    k0, CP0_IPL             // !!!!
 	ehb
 	lui     k1, %hi(CP0_STATUS_CU0)
 	addiu   k1, CP0_STATUS_MODE | CP0_STATUS_EXL | CP0_STATUS_IE
