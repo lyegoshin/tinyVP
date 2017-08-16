@@ -471,75 +471,83 @@ def join_pairs(vm):
     ptetree = []
     for pte in ptet:
 	if ptesave is None:
+	    # No saved pte, clean start
 	    if (pte[0] % (2 * pte[1])) == 0:
-		# first page in pair
+		# This is a first page in pair
 		ptesave = pte
 		lastaddr = pte[0] + pte[1]
 		continue
-	    # second page. Check that first is empty
+	    # No, this is a second page in pair. Check that first is empty
 	    if lastaddr + pte[1] <= pte[0]:
+		# First page in ptesave is empty - lastpage is too far away
 		ptetree.append((pte[0] - pte[1], pte[1], None, pte[2], None, pte[3], pte[4], join_bitmask(None,0,pte[5],pte[1])))
 		lastaddr = pte[0] + pte[1]
 		continue
-	    # split a page
+	    # split a page, lastpage was too close for this pte page big size,
+	    # we can't pair
 	    ptea = split_page(pte)
 	    lastaddr = pte[0] + pte[1]
 	    ptetree.extend(ptea)
 	    continue
-	# Potential second page or discontigues page
+	# Potential second page or discontigues page, we have a saved pte
 	if (ptesave[1] == pte[1]) and \
 	   (ptesave[4] == pte[4]) and \
 	   ((ptesave[0] + pte[1]) == pte[0]):
-	    # a regular page pair
+	    # Perfect match - a regular page pair, emulation status matches
 	    ptetree.append((ptesave[0], pte[1], ptesave[2], pte[2], ptesave[3], pte[3], pte[4], join_bitmask(ptesave[5],ptesave[1],pte[5],pte[1])))
 	    lastaddr = pte[0] + pte[1]
 	    ptesave = None
 	    continue
+	# ... not a regular pair, start hacking both
 	if ((ptesave[0] + (2 * ptesave[1])) <= pte[0]) and \
 	    not ((pte[0] % (2 * pte[1]) != 0) and \
 	    ((ptesave[0] + (2 * ptesave[1])) > (pte[0] - pte[1]))) :
-	    # gap, big enough
-	    # first, create a saved page as first in pair with empty second
+	    # There is a gap between both, big enough to create separate pairs.
+	    # First, create a saved page as first in pair with empty second
 	    ptetree.append((ptesave[0], ptesave[1], ptesave[2], None, ptesave[3], None, ptesave[4], join_bitmask(ptesave[5],ptesave[1],None,0)))
 	    lastaddr = ptesave[0] + ptesave[1]
 	    ptesave = None
 	    # next, process pte
 	    if (pte[0] % (2 * pte[1])) == 0:
-		# first page in pair
+		# ... as a first page in pair (save it for next pte)
 		ptesave = pte
 		continue
-	    # just a second page
+	    # .. as a second page in pair with empty 1st
 	    ptetree.append((pte[0] - pte[1], pte[1], None, pte[2], None, pte[3], pte[4], join_bitmask(None,0,pte[5],pte[1])))
 	    lastaddr = pte[0] + pte[1]
 	    continue
 	# split one page. Check which one
 	if (ptesave[0] + (2 * ptesave[1])) <= pte[0]:
-	    # split a second, it is bigger. But first - add first
+	    # split a second, it is bigger. But initially - add 1st w empty 2nd
 	    ptetree.append((ptesave[0], ptesave[1], ptesave[2], None, ptesave[3], None, ptesave[4], join_bitmask(ptesave[5],ptesave[1],None,0)))
 	    ptea = split_page(pte)
 	    lastaddr = pte[0] + pte[1]
 	    ptesave = None
 	    ptetree.extend(ptea)
 	    continue
-	# split a first
+	# Now, split a first
 	ptea = split_page(ptesave)
 	lastaddr = ptesave[0] + ptesave[1]
 	ptesave = None
 	ptetree.extend(ptea)
 	# process a second
 	if (pte[0] % (2 * pte[1])) == 0:
-	    # first page in pair
+	    # ... as a first page in pair
 	    ptesave = pte
 	    continue
-	# second page
-	#*** split it! if it is close (in the same pair w 1st - actually, just not compatible)
+	# ... as a second page
+	#*** split it! if it is too close (in the same pair w 1st -
+	#    actually just not compatible in perfect match above)
 	lastaddr = pte[0] + pte[1]
 	ptea = split_page(pte)
 	ptetree.extend(ptea)
 	continue
+    #
     if ptesave is not None:
 	# it is a first page
 	ptetree.append((ptesave[0], ptesave[1], ptesave[2], None, ptesave[3], None, ptesave[4], join_bitmask(ptesave[5],ptesave[1],None,0)))
+    #
+    #
     # set size to area size from page size
     ptecopy = []
     for pt in ptetree:
