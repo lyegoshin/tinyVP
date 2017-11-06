@@ -92,8 +92,7 @@ void switch_to_vm(struct exception_frame *exfr, unsigned int vmid)
 			::: "$1", "$31", "memory");
 	}
 
-	__asm__ __volatile__(
-		"addu   $30, $0, %0"::"r"(v0));
+	current = v0;
 
 	write_cp0_guestctl1(current->cp0_guestctl1);
 	current->exfr.cp0_status &= ~(CP0_STATUS_CU1|CP0_STATUS_MX|CP0_STATUS_CPU_CONTROL);
