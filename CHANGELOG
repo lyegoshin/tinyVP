@@ -1,3 +1,40 @@
+11/6/17:    Release 0.98
+
+    - Enable PIC32MZEF SoC prefetcher and flash ECC. Some acceleration and
+      increase of flash lifetime.
+
+    - Spurios IRQ is ignored. It can happen - PIC32MZEF can produce a spurious
+      IRQ 0 and that number is a CP0 COMPARE interrupt number.
+
+    - Switch to a scheduler tick in time keeping from small ticks. It saves some
+      power and increases RealTime capability.
+
+    - Print an ignored write to device registers to console. Very useful during
+      startup of new guest SW, Instead of searching in guest source code for
+      ports/pins setup it can be looked into console log to figure out how
+      port/pin routing is configured by guest.
+
+    - Manual setup of board registers feature. Board registers can be
+      initialized from a manually prepared array at start time.
+
+    - PIC32MZEF PMD registers configuration (Power Management Disable) during
+      start time.
+
+    - A couple of bugfixes:
+
+	- Adjucent mixed PTE (small and full size) in configuration created
+	  an invalid PTE tree.
+
+	- Change of "current" frame ptr during context switch is fixed to
+	  satisfy an extended optimization in new toolchain
+
+	- Clearing LLbit on context switch uses VM0 map but not VM7 and
+	  provided a wrong result. Adjusted to toolchain in a correct address
+	  offset calculation.
+
+    - Some minor fixes.
+
+
 7/5/17:     Release 0.97
 
     - Added access protection for guest DMA via PIC32MZEF System Bus
