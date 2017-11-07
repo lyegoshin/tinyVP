@@ -184,8 +184,8 @@ void panic_print(struct exception_frame *exfr, unsigned long sp, unsigned long f
 	    mfc0(14, 2), mfc0(13, 5), sp, fp, gp, ra, mfc0(31, 2), mfc0(31, 3));
 	uart_writeline(console_uart, panicbuf);
 
-	sprintf(panicbuf, "Exfr: EPC=%08x Status=%08x Cause=%08x SRSctl=%08x Context=%08x\n",
-	    exfr->cp0_epc, exfr->cp0_status, exfr->cp0_cause, exfr->cp0_srsctl, exfr->cp0_context);
+	sprintf(panicbuf, "Exfr: EPC=%08x Status=%08x Cause=%08x SRSctl=%08x Context=%08x GCtl0=%08x\n",
+	    exfr->cp0_epc, exfr->cp0_status, exfr->cp0_cause, exfr->cp0_srsctl, exfr->cp0_context, exfr->cp0_guestctl0);
 	uart_writeline(console_uart, panicbuf);
 	sprintf(panicbuf, "Guest:  EPC=%08x Status=%08x Cause=%08x NestedEPC=%08x EXC=%08x Ebase=%08x ErrEPC=%08x\n",
 	    mfgc0(14, 0), mfgc0(12, 0), mfgc0(13, 0), mfgc0(14, 2), mfgc0(13, 5), mfgc0(15, 1), mfgc0(30, 0));

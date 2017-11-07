@@ -321,7 +321,7 @@ bad_area:   ;
 
 void dump_tlb()
 {
-	unsigned long l0, l1, hi, ind, ind0, pm;
+	unsigned long l0, l1, hi, ind, ind0, pm, gctl1;
 	unsigned int ie, find;
 
 	im_up(ie);
@@ -344,8 +344,9 @@ void dump_tlb()
 		    l1 = read_cp0_entrylo1();
 		    hi = read_cp0_entryhi();
 		    pm = read_cp0_pagemask();
-		    sprintf(str,"TLB%d: HI=0x%08x Lo0=0x%08x Lo1=0x%08x PM=0x%08x IND=0x%08x\n",
-			   ind0,hi,l0,l1,pm,ind);
+		    gctl1 = read_cp0_guestctl1();
+		    sprintf(str,"TLB%d: HI=0x%08x Lo0=0x%08x Lo1=0x%08x PM=0x%08x GCTL1=0x%08x\n",
+			   ind0,hi,l0,l1,pm,gctl1);
 		    uart_writeline(console_uart, str);
 	    im_down(ie);
 	    if (ind0 == find)
