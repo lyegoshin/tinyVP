@@ -54,7 +54,6 @@ CPTE_BLOCK_SIZE_SHIFT = 4
 
 irq_emulator_list = []
 emulator_list = []
-__builtin__.vm7_is_absent = None
 
 global platform
 
@@ -70,22 +69,20 @@ basepagesize = 4*KB
 #
 
 def parse_config(filename):
-    #global vm7_is_absent
     vm = parse_config_file(filename, "build")
     #
     #  setup ERET page addresses in VM7 in accordance with platform file definitions
-    if 7 in configuration:
-	vm = configuration[7]
+    if 0 in configuration:
+	vm = configuration[0]
     else:
-	__builtin__.vm7_is_absent = 1
 	vm = {}
-	vm['id'] = '7'
+	vm['id'] = '0'
     mmap = []
     if "mmap" in vm:
 	mmap = vm["mmap"]
     mmap.extend([(hex(kphys(str(vzparser.eretpage))), '0x1000', 'xds', hex(kphys(str(vzparser.vzcode))), 0)])
     vm["mmap"] = mmap
-    configuration[7] = vm
+    configuration[0] = vm
     #
     # Select the only last ROM and RAM definitions in each VM
     # It is needed to run an automatic ROM/RAM allocation - in case of manual
@@ -381,6 +378,7 @@ def create_pte_lists():
 	small_pte_blocks(configuration[vm])
     for vm in configuration:
 	check_uniq_address_range(configuration[vm])
+    # TODO: check that VM7 hasn't vzparser.eretpage in map
 
 def page_attr_match(attr1, attr2):
     if len(attr1) != len(attr2):

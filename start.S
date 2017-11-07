@@ -653,6 +653,7 @@ _clear_g_ll:
 	ehb
 
 	mtgc0   $0, CP0_STATUS      // predefined good value
+	mtgc0   $0, CP0_CAUSE       // predefined good value
 
 	li      k0, VMID_ERET
 	mtc0    k0, CP0_GUESTCTL1   // set VMID for
@@ -660,14 +661,12 @@ _clear_g_ll:
 	li      k1, CP0_GUESTCTL0EXT_INIT
 	mtc0    k1, CP0_GUESTCTL0EXT    // FCD=1 to prevent tracking
 
-	mfc0    k0, CP0_GUESTCTL0
-	addiu   k1, $0, -1
-	ins     k0, k1, CP0_GUESTCTL0_GM, 1
+	li  k0, CP0_GUESTCTL0_INIT | (1 << CP0_GUESTCTL0_GM)
 	mtc0    k0, CP0_GUESTCTL0
 
 	mtc0    $0, CP0_CONTEXT
 
-	li      k1, eret_start - TLB_refill + eret_page
+	lw      k1, eret_start_addr
 	mtc0    k1, CP0_EPC
 	addiu   k1, 4   // eret_cont  - TLB_refill + eret_page
 	mtgc0   k1, CP0_EPC
@@ -687,6 +686,8 @@ _clear_g_ll_cont:
 	xori    k0, CP0_STATUS_IE | CP0_STATUS_EXL // clear EXL,IE
 	jr.hb   ra
 	 mtc0   k1, CP0_STATUS  // and disable IE, enable CU0, kernel mode, no EXL
+
+eret_start_addr:    .word   eret_start - TLB_refill + eret_page
 	.set pop
 
 

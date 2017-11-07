@@ -105,15 +105,11 @@ def output_ipcmask(ofile,irqs):
 
 def output_ic_tables(configuration,ofile):
     #global uniqlblnum
-    #global vm7_is_absent
     # output masks words
     print >>ofile,"void insert_timer_IRQ(struct exception_frame *exfr);"
     for vmid in sorted(configuration):
 	# vm0 has no IC emulation
 	if vmid == 0:
-	    continue
-	# skip VM7 IC emulation if VM7 has just ERET page
-	if (vmid == 7) and (__builtin__.vm7_is_absent == 1):
 	    continue
 	vm = configuration[vmid]
 	#mpp = MyPrettyPrinter()
@@ -160,9 +156,6 @@ def output_ic_tables(configuration,ofile):
     print >>ofile, "\t(void *)0x0,"
     for vmid in range(1,8):
 	if vmid in configuration:
-	    # skip VM7 IC emulation if VM7 has just ERET page
-	    if (vmid == 7) and (__builtin__.vm7_is_absent == 1):
-		continue
 	    vm = configuration[vmid]
 	    print >>ofile, "\t&%s[0]," % (vm["masklabel"])
 	else:
@@ -173,9 +166,6 @@ def output_ic_tables(configuration,ofile):
     print >>ofile, "\t(void *)0x0,"
     for vmid in range(1,8):
 	if vmid in configuration:
-	    # skip VM7 IC emulation if VM7 has just ERET page
-	    if (vmid == 7) and (__builtin__.vm7_is_absent == 1):
-		continue
 	    vm = configuration[vmid]
 	    print >>ofile, "\t&%s[0]," % (vm["emlabel"])
 	else:
@@ -229,14 +219,11 @@ def output_ic_tables(configuration,ofile):
     print >>ofile, "0,",
     for vmid in range(1,8):
 	if vmid in configuration:
-	    if (vmid == 7) and (__builtin__.vm7_is_absent == 1):
-		print >>ofile, "0,",
-	    else:
-		vm = configuration[vmid]
-		if "entry" not in vm:
-		    print "Missed 'entry' option in vm%s" % (vmid)
-		    exit(1)
-		print >>ofile, "%s," % (vm["entry"]),
+	    vm = configuration[vmid]
+	    if "entry" not in vm:
+		print "Missed 'entry' option in vm%s" % (vmid)
+		exit(1)
+	    print >>ofile, "%s," % (vm["entry"]),
 	else:
 	    print >>ofile, "0,",
     print >>ofile, " };"
@@ -293,9 +280,6 @@ def output_board_setup(configuration,ofile):
 		    pmd[6] = pmd[6] & ~(1 << int(dev["pmd7"],0))
 	# vm0 has no IC emulation
 	if vmid == 0:
-	    continue
-	# skip VM7 IC emulation if VM7 has just ERET page
-	if (vmid == 7) and (__builtin__.vm7_is_absent == 1):
 	    continue
 	vm = configuration[vmid]
 	if "dma" in vm:
