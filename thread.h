@@ -44,8 +44,6 @@ struct exception_frame {
 	unsigned int            cp0_nested_exc;
 	unsigned int            lo;
 	unsigned int            hi;
-// short common block finishes here
-// SP: extended exception frame starts here, used for VM0
 	unsigned int    gpr[32];
 };
 
@@ -56,7 +54,9 @@ struct thread {
 	unsigned int        dspcontrol;
 	unsigned long       dspr[6];
 
-	unsigned int        vmid;
+	unsigned int        gid;
+	unsigned int        srs;
+	unsigned int        tid;
 	unsigned int        thread_flags;
 	unsigned int        preempt_count;
 	unsigned int        reschedule_count;
@@ -69,6 +69,8 @@ struct thread {
 
 	int        exception_cause;
 	int        exception_gcause;
+
+	unsigned int        cp0_entryhi;
 
 	unsigned int        cp0_guestctl0ext;
 	unsigned int        cp0_guestctl1;
@@ -153,7 +155,7 @@ struct thread {
 	unsigned long long  lcompare;
 	unsigned long long  lcount2read;
 };
-#define VM_FRAME_SIZE   ((sizeof(struct thread) + 0x1f) & ~0x1f)
+#define THREAD_FRAME_SIZE   ((sizeof(struct thread) + CACHE_LINE_SIZE - 1) & ~(CACHE_LINE_SIZE-1))
 //#define VM_FRAME_SIZE   ((sizeof(struct thread) + 0x7ff) & ~0x7ff)
 
 #define THREAD_FLAGS_RUNNING    0x00000001
@@ -186,19 +188,22 @@ static void inline preempt_enable(void)
 extern unsigned int fpu_owner;
 extern unsigned int dsp_owner;
 
-#define is_fpu_owner()  (fpu_owner == current->vmid)
+#define is_fpu_owner()  (fpu_owner == current->tid)
 #define fpu_get_fcr31() read_cp1_fcr31()
 
-extern int const vm_list[];
-extern int const vm_options[];
+extern unsigned const vm_sp[];
+extern unsigned const vm_list[];
+extern unsigned const vm_options[];
+
 #define VM_OPTION_POLLING       0x00000001
+#define VM_OPTION_KSU           0x00000018
 
 extern unsigned long vm0_thread;
-#define get_vm_fp(vm)   ((struct thread *)(vm0_thread - ((vm) * VM_FRAME_SIZE)))
-extern void IRQ_wait_exit(void);
+#define get_thread_fp(tid)   ((struct thread *)(vm0_thread - ((tid) * THREAD_FRAME_SIZE)))
+extern void IRQ_nonexc_exit(void);
 extern unsigned int reschedule_flag;
-extern unsigned int reschedule_vm;
+extern unsigned int reschedule_thread;
 
-extern void switch_to_vm(struct exception_frame *exfr, unsigned int vmid);
+extern void switch_to_thread(struct exception_frame *exfr, unsigned int tid);
 
 #endif

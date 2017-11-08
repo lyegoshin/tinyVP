@@ -1,3 +1,4 @@
+#include    "tinyVP.h"
 #include    "irq.h"
 #include    "uart.h"
 #include    "stdio.h"
@@ -36,7 +37,7 @@ void    __main(/* void */ unsigned int a1, unsigned int a2, unsigned int a3, uns
 	volatile int j;
 	char str[256];
 	static int once = 0;
-	static int vmid = 0;
+	static unsigned thread = 0;
 
 	uart_init(console_uart);
 
@@ -161,7 +162,7 @@ uart_start_console();
 	    if (console_has_next_char(0)) {
 		unsigned int ie;
 		unsigned char c = console_next_char(0);
-		struct thread *next  = get_vm_fp(vmid);
+		struct thread *next = get_thread_fp(thread);
 
 		im_up(ie);
 
@@ -171,9 +172,9 @@ uart_start_console();
 		    break;
 
 		case 'q':
-		    if (vmid) {
-			sprintf(str,"\nVM%d: EPC=%08x SRSctl=%08x Context=%08x gc2=%08x Cause=%08x BVA=%08x BI=%08x; thread_flags=%08x\n",
-			    vmid,next->exfr.cp0_epc,next->exfr.cp0_srsctl,next->exfr.cp0_context,next->cp0_guestctl2,next->exfr.cp0_cause,
+		    if (thread) {
+			sprintf(str,"\nThread%d: EPC=%08x SRSctl=%08x Context=%08x gc2=%08x Cause=%08x BVA=%08x BI=%08x; thread_flags=%08x\n",
+			    thread,next->exfr.cp0_epc,next->exfr.cp0_srsctl,next->exfr.cp0_context,next->cp0_guestctl2,next->exfr.cp0_cause,
 			    next->exfr.cp0_badvaddr,next->exfr.cp0_badinst,next->thread_flags);
 			uart_writeline(console_uart, str);
 			sprintf(str,"Guest: EPC=%08x Status=%08x Cause=%08x BVA=%08x BI=%08x; InjectedIRQ=%d TimeLateCnt=%d\n",
@@ -188,71 +189,73 @@ uart_start_console();
 		    break;
 
 		case 's':
-		    if (vmid) {
+		    if (thread) {
 			next->thread_flags &= ~THREAD_FLAGS_RUNNING;
 			next->thread_flags |= THREAD_FLAGS_STOPPED;
-			sprintf(str,"\nVM%d: stopped\n",vmid);
+			sprintf(str,"\nThread%d: stopped\n",thread);
 			uart_writeline(console_uart, str);
 		    }
 		    break;
 
 		case 'c':
-		    if (vmid) {
+		    if (thread) {
 			next->thread_flags &= ~THREAD_FLAGS_STOPPED;
 			next->thread_flags |= THREAD_FLAGS_RUNNING;
-			sprintf(str,"\nVM%d: continued\n",vmid);
+			sprintf(str,"\nThread%d: continued\n",thread);
 			uart_writeline(console_uart, str);
 		    }
 		    break;
 
 		case 'r':
-		    if (vmid) {
+		    if (thread) {
 			next->thread_flags &= ~THREAD_FLAGS_STOPPED;
-			init_vm(vmid, next->thread_flags & THREAD_FLAGS_DEBUG? next->thread_flags : 0);
-			sprintf(str,"\nVM%d: restarted\n",vmid);
+			init_thread(thread, next->thread_flags & THREAD_FLAGS_DEBUG? next->thread_flags : 0);
+			sprintf(str,"\nThread%d: restarted\n",thread);
 			uart_writeline(console_uart, str);
 		    }
 		    break;
 
 		case 'd':
-		    if (vmid) {
+		    if (thread) {
 			next->thread_flags ^= THREAD_FLAGS_DEBUG;
-			sprintf(str,"\nVM%d: debug %s\n",vmid, next->thread_flags & THREAD_FLAGS_DEBUG? "on" : "off");
+			sprintf(str,"\nThread%d: debug %s\n",thread, next->thread_flags & THREAD_FLAGS_DEBUG? "on" : "off");
 			uart_writeline(console_uart, str);
 		    }
 		    break;
 
 		case 'e':
-		    if (vmid) {
+		    if (thread) {
 			next->thread_flags ^= THREAD_FLAGS_EXCTRACE;
-			sprintf(str,"\nVM%d: exception trace %s\n",vmid, next->thread_flags & THREAD_FLAGS_EXCTRACE? "on" : "off");
+			sprintf(str,"\nThread%d: exception trace %s\n",thread, next->thread_flags & THREAD_FLAGS_EXCTRACE? "on" : "off");
 			uart_writeline(console_uart, str);
 		    }
 		    break;
 
 		case 'i':
-		    if (vmid) {
+		    if (thread) {
 			next->thread_flags ^= THREAD_FLAGS_INTTRACE;
-			sprintf(str,"\nVM%d: interrupt trace %s\n",vmid, next->thread_flags & THREAD_FLAGS_INTTRACE? "on" : "off");
+			sprintf(str,"\nThread%d: interrupt trace %s\n",thread, next->thread_flags & THREAD_FLAGS_INTTRACE? "on" : "off");
 			uart_writeline(console_uart, str);
 		    }
 		    break;
 
 		case 't':
-		    if (vmid) {
+		    if (thread) {
 			next->thread_flags ^= THREAD_FLAGS_TIMETRACE;
-			sprintf(str,"\nVM%d: time trace %s\n",vmid, next->thread_flags & THREAD_FLAGS_TIMETRACE? "on" : "off");
+			sprintf(str,"\nThread%d: time trace %s\n",thread, next->thread_flags & THREAD_FLAGS_TIMETRACE? "on" : "off");
 			uart_writeline(console_uart, str);
 		    }
 		    break;
 
 		case 'I':
-		    if (vmid)
+		    if (thread)
 			ic_print(next);
 		    break;
 
-		case '0'...'7':
-		    vmid = (c & 0x7f) - '0';
+		case '0'...'9':
+		    thread = (c & 0x7f) - '0';
+		    if ((thread > MAX_NUM_THREAD) || !vm_list[thread])
+			    thread = 0;
 		    break;
 		}
 

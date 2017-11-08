@@ -37,7 +37,8 @@ import vzparser
 from vzparser import *
 
 import importlib
-import __builtin__
+import build_vars
+from build_vars import *
 
 class MyPrettyPrinter(pprint.PrettyPrinter):
     def format(self, object, context, maxlevels, level):
@@ -51,9 +52,16 @@ ENTRYLO_PFN_SHIFT = 6
 ENTRYLO_SW_CDG = 0xF     # G bit is reused for "write-ignore"
 CPTE_SHIFT_SIZE = 5
 CPTE_BLOCK_SIZE_SHIFT = 4
+STACK_DEFAULT_ADDRESS = 0x7FFF0000
+MAX_NUM_GUEST = 7
 
 irq_emulator_list = []
 emulator_list = []
+
+global build_vars
+build_vars.uniqlblnum = 0
+build_vars.max_num_guest = 0 # MAX_NUM_GUEST
+build_vars.max_num_thread = 0
 
 global platform
 
@@ -69,20 +77,26 @@ basepagesize = 4*KB
 #
 
 def parse_config(filename):
-    vm = parse_config_file(filename, "build")
+    build_vars.max_num_guest = 0 # MAX_NUM_GUEST
+    build_vars.max_num_thread = 0
+    parse_config_file(filename, "build")
     #
-    #  setup ERET page addresses in VM7 in accordance with platform file definitions
-    if 0 in configuration:
-	vm = configuration[0]
-    else:
-	vm = {}
-	vm['id'] = '0'
-    mmap = []
-    if "mmap" in vm:
-	mmap = vm["mmap"]
-    mmap.extend([(hex(kphys(str(vzparser.eretpage))), '0x1000', 'xds', hex(kphys(str(vzparser.vzcode))), 0)])
-    vm["mmap"] = mmap
-    configuration[0] = vm
+    if build_vars.max_num_guest != 0:
+	#  setup ERET page addresses in VM7 in accordance with platform file definitions
+	vm = None
+	if 0 in configuration:
+	    vm = configuration[0]
+	else:
+	    vm = {}
+	    vm["id"] = str(0)
+	    vm["srs"] = str(0)
+	    vm["type"] = "vm"
+	mmap = []
+	if "mmap" in vm:
+	    mmap = vm["mmap"]
+	mmap.extend([(hex(kphys(str(vzparser.eretpage))), '0x1000', 'xds', hex(kphys(str(vzparser.vzcode))), 0)])
+	vm["mmap"] = mmap
+	configuration[0] = vm
     #
     # Select the only last ROM and RAM definitions in each VM
     # It is needed to run an automatic ROM/RAM allocation - in case of manual
@@ -744,8 +758,6 @@ def output_el01(pte, ofile, flag):
     else:
 	print >>ofile, "    { .cpte_dl.f=%s, %s, 0x%0x, 0x%0x }, //\t0x%0x 0x%0x" % (emulator, bitmask, elo0, elo1, pte[4], pte[5])
 
-__builtin__.uniqlblnum = 0
-
 def output_bitmasks(pt, vm, bfile):
     #global uniqlblnum
     ptlist = []
@@ -755,8 +767,8 @@ def output_bitmasks(pt, vm, bfile):
 	    continue
 	if pte[7] is None:
 	    continue
-	newlabel = "bm" + str(vm["id"]) + "_" + str(__builtin__.uniqlblnum)
-	__builtin__.uniqlblnum += 1
+	newlabel = "bm" + str(vm["id"]) + "_" + str(build_vars.uniqlblnum)
+	build_vars.uniqlblnum += 1
 	print >>bfile, "\nunsigned long const %s[] = {" % (newlabel),
 	for idx2, w in enumerate(pte[7]):
 	    if (idx2 % 8) == 0:
@@ -777,8 +789,8 @@ def output_small_ptetree(pt, vm, ofile):
 	if type(pte) is not tuple:
 	    label = output_small_ptetree(pte, vm, ofile)
 	ptlist.append((label, pte))
-    newlabel = "vm" + str(vm["id"]) + "_" + str(__builtin__.uniqlblnum) + "_sw"
-    __builtin__.uniqlblnum += 1
+    newlabel = "vm" + str(vm["id"]) + "_" + str(build_vars.uniqlblnum) + "_sw"
+    build_vars.uniqlblnum += 1
     print >>ofile, "\nunion cpte const %s[] = { // 0x%08x / 0x%x" % (newlabel,pt[0],pt[1])
     slot = 0
     for label, pte in ptlist:
@@ -819,8 +831,8 @@ def output_ptetree(pt, vm, ofile):
 		#
 		label1 = output_small_ptetree(pte, vm, ofile)
 		# output transit element - "stop-point"
-		label = "vm" + str(vm["id"]) + "_" + str(__builtin__.uniqlblnum) + "_tr"
-		__builtin__.uniqlblnum += 1
+		label = "vm" + str(vm["id"]) + "_" + str(build_vars.uniqlblnum) + "_tr"
+		build_vars.uniqlblnum += 1
 		maskofaddress = (pt[2] - 1) ^ (pte[1] - 1)
 		goldenaddress = pte[0] & maskofaddress
 		pagemask = (pte[2] - 1)
@@ -836,8 +848,8 @@ def output_ptetree(pt, vm, ofile):
 		ptlist.append((label, pte, 0))
 	else:
 	    ptlist.append((label, pte, 0))
-    newlabel = "vm" + str(vm["id"]) + "_" + str(__builtin__.uniqlblnum)
-    __builtin__.uniqlblnum += 1
+    newlabel = "vm" + str(vm["id"]) + "_" + str(build_vars.uniqlblnum)
+    build_vars.uniqlblnum += 1
     print >>ofile, "\nunion cpte const %s[] = { // 0x%08x / 0x%x" % (newlabel,pt[0],pt[1])
     slot = 0
     for label, pte, transit in ptlist:
@@ -905,24 +917,49 @@ for vmid in configuration:
 	# let's allocate ROM/RAM space in area defined by platform file
 	newmmap = []
 	for region in vm["mmap"]:
-		if region[4] == 0:
-		    newmmap.append((region[0],region[1],region[2],region[3]))
-		    if "w" not in region[2]:
-			offset = 0
-			if region[3] is not None:
-			    offset = int(region[3],0) - int(region[0],0)
-		    continue
+	    if region[4] == 0:
+		newmmap.append((region[0],region[1],region[2],region[3]))
+		if "w" not in region[2]:
+		    offset = 0
+		    if region[3] is not None:
+			offset = int(region[3],0) - int(region[0],0)
+		continue
+	    paddr = int(region[0],0)
+	    if vm["type"] == "vm":
 		paddr = kphys(region[0])
-		size = round_region(region[1], region[3])
-		if region[4] == 1:
-		    newregion, offset = allocate_region(paddr, size, region[2], region[3], 0)
-		else:
-		    newregion, offsetrw = allocate_region(paddr, size, region[2], region[3], 1)
-		newmmap.append(newregion)
+	    size = round_region(region[1], region[3])
+	    if region[4] == 1:
+		newregion, offset = allocate_region(paddr, size, region[2], region[3], 0)
+	    else:
+		newregion, offsetrw = allocate_region(paddr, size, region[2], region[3], 1)
+	    newmmap.append(newregion)
+	if vm["type"] == "thread":
+	    if "sp" not in vm:
+		vm["sp"] = (0, 0, 0)
+	    else:
+		size, address, sp = vm["sp"]
+		if vm["mode"] != "kernel":
+		    isreg = 0
+		    if address is not None:
+			for region in newmap:
+			    if (region[0] <= address) and \
+			       ((region[0] + region[1]) >= (address + size)):
+				isreg = 1
+				break
+		    if isreg == 0:
+			if address is None:
+			    address = int(STACK_DEFAULT_ADDRESS,0)
+			    sp = address + size
+			size = round_region(size, 4*KB)
+			vm["sp"] = (size, address, sp)
+			newregion, offsetrw = allocate_region(address, size, "rw", 4*KB, 1)
+			newmmap.append(newregion)
 	vm["mmap"] = newmmap
 	print "\nVM",str(vmid),":"
 	for region in vm["mmap"]:
 	    print "(%10s,\t%10s,\t%10s,\t%10s)" % region
+    if "sp" not in vm:
+	vm["sp"] = (0, 0, 0)
     if "file" in vm:
 	cmdname = os.path.splitext(vm["file"])[0]+'.cmd'
 	if os.path.isfile(cmdname):
@@ -960,6 +997,7 @@ for vm in sorted(configuration):
     create_pte_tree(configuration[vm])
 # create PTE tables
 ofile = open("pte.c","w")
+print >>ofile, '#include "tinyVP.h"'
 print >>ofile, '#include "tlb.h"'
 output_emulator_list(ofile)
 label_list = {}
@@ -968,7 +1006,7 @@ for vm in sorted(configuration):
     label_list[vm] = label
 print >>ofile, "\nextern long absent_vm_tlbtree[];"
 print >>ofile, "\nstruct cpte_nd const * const cpt_base[] = {"
-for i in range(0, 8):
+for i in range(0, build_vars.max_num_thread+1):
     if i in configuration:
 	print >>ofile, "\t(struct cpte_nd *)&%s," % (label_list[i])
     else:
@@ -977,11 +1015,97 @@ print >>ofile, "};"
 # creat IC tables
 ofile.close()
 ofile = open("ic-tables.c","w")
+print >>ofile, '#include "tinyVP.h"'
 print >>ofile, '#include "ic.h"'
 print >>ofile, '#include "tlb.h"'
 print >>ofile, '#include "irq.h"'
 output_emulator_lists(ofile)
 platform.output_ic_tables(configuration,ofile)
 ofile.close()
+ofile = open("tinyVP.h","w")
+print >>ofile, '#define MAX_NUM_GUEST ', MAX_NUM_GUEST
+print >>ofile, '#define MAX_NUM_THREAD ', build_vars.max_num_thread
+print >>ofile, '#define VZSTACKSIZE ', build_vars.vzstacksize
+ofile.close()
 ofile = open("board_setup_tbl.c","w")
 platform.output_board_setup(configuration,ofile)
+ofile.close()
+ofile = open("vm_options.c","w")
+# output VM options
+print >>ofile, '#include "tinyVP.h"'
+print >>ofile, '#include "thread.h"'
+print >>ofile, "\nunsigned int const vzstack_size_total = (VZSTACKSIZE + (MAX_NUM_THREAD * THREAD_FRAME_SIZE));"
+print >>ofile, "\nunsigned const vm_options[MAX_NUM_THREAD+1] = { ",
+print >>ofile, "0,",
+for vmid in range(1,build_vars.max_num_thread+1):
+    if vmid in configuration:
+	vm = configuration[vmid]
+	opt = int(vm["srs"]) << 24
+	if vm["type"] == "thread":
+	    if (vm["mode"] == "user") or (vm["mode"] == "u"):
+		opt = opt | 0x10
+	else:
+	    opt = opt | (int(vm["id"]) << 16)
+	if ("irqpolling" in vm) and (vm["irqpolling"] != 0):
+	    opt = opt | 0x1
+	print >>ofile, "0x%08x," % (opt),
+    else:
+	print >>ofile, "0,",
+print >>ofile, " };\n"
+# output stack
+for vmid in range(1,build_vars.max_num_thread+1):
+    if vmid in configuration:
+	vm = configuration[vmid]
+	if vm["type"] == "thread":
+	    if vm["mode"] == "kernel":
+		size, address, sp = vm["sp"]
+		if address is None:
+		    address = "vm%d_stack" % (vmid)
+		    print >>ofile, "unsigned %s[%d];" % (address,(size+3)/4)
+		    sp = address
+		    vm["sp"] = (size, address, sp)
+	configuration[vmid] = vm
+print >>ofile, "\nunsigned  const vm_sp[MAX_NUM_THREAD+1] = { ",
+print >>ofile, "0,"
+for vmid in range(1,build_vars.max_num_thread+1):
+    if vmid not in configuration:
+	print >>ofile, "\t(unsigned)(unsigned int *)0x0,"
+	continue
+    vm = configuration[vmid]
+    if vm["type"] == "thread":
+	size, address, sp = vm["sp"]
+	if isinstance(sp, basestring):
+	    print >>ofile, "\t(unsigned)(unsigned int *)&%s," % (sp)
+	else:
+	    print >>ofile, "\t(unsigned)(unsigned int *)0x%0x," % (sp)
+    else:
+	print >>ofile, "\t(unsigned)(unsigned int *)0x0,"
+print >>ofile, " };\n"
+# output the scheduler VM list
+for vmid in range(1,build_vars.max_num_thread+1):
+    if vmid in configuration:
+	if (vmid == MAX_NUM_GUEST) and (build_vars.vm7_is_absent == 1):
+	    continue
+	else:
+	    vm = configuration[vmid]
+	    if "entry" not in vm:
+		print "Missed 'entry' option in vm%d" % (vmid)
+		exit(1)
+	    try:
+		i = int(vm["entry"],0)
+	    except ValueError:
+		print >>ofile, "extern void * %s();" % (vm["entry"])
+print >>ofile, "\nunsigned const vm_list[MAX_NUM_THREAD + 1] = {",
+print >>ofile, "\t(unsigned)0,"
+for vmid in range(1,build_vars.max_num_thread+1):
+    if vmid in configuration:
+	if (vmid == MAX_NUM_GUEST) and (build_vars.vm7_is_absent == 1):
+	    print >>ofile, "\t(unsigned)0,"
+	else:
+	    vm = configuration[vmid]
+	    print >>ofile, "\t(unsigned)%s," % (vm["entry"])
+    else:
+	print >>ofile, "\t(unsigned)0,"
+print >>ofile, " };\n"
+print >>ofile, "unsigned int vzstack[(VZSTACKSIZE/4) + ((MAX_NUM_THREAD * THREAD_FRAME_SIZE)/4)] __attribute__ ((aligned(CACHE_LINE_SIZE)));\n"
+ofile.close()

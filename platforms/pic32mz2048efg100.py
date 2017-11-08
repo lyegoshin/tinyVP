@@ -29,7 +29,8 @@ from pprint import pprint
 import pprint
 import sys
 import math
-import __builtin__
+import build_vars
+from build_vars import *
 
 pmd = []
 
@@ -67,7 +68,7 @@ def board_parse_check(configuration):
 				exit(1)
 			else:
 			    dmaset[ds] = vmid
-	#print "dmarequired", dmarequired, " vmid", vm['id']
+	#print "dmarequired", dmarequired, " vmid", vm["id"]
 	if dmarequired == 1:
 	    if "dma" not in vm:
 		print "Warning: VM has DMA-capable device but not DMA zone, vm =", vm["id"]
@@ -120,8 +121,8 @@ def output_ic_tables(configuration,ofile):
 	irqs = []
 	if "irqlist" in vm:
 	    irqs.extend(vm["irqlist"])
-	newlabel = "vm" + str(vm["id"]) + "_" + str(__builtin__.uniqlblnum)
-	__builtin__.uniqlblnum += 1
+	newlabel = "vm" + str(vm["id"]) + "_" + str(build_vars.uniqlblnum)
+	build_vars.uniqlblnum += 1
 	vm["masklabel"] = newlabel
 	print >>ofile, "\nunsigned int const %s[70] = { // vm%d irqmasks" % (newlabel, vmid),
 	# out IFS
@@ -139,8 +140,8 @@ def output_ic_tables(configuration,ofile):
 	if "emlist" in vm:
 	    ems = dict(vm["emlist"])
 	ems[0] = "insert_timer"
-	newlabel = "vm" + str(vm["id"]) + "_" + str(__builtin__.uniqlblnum)
-	__builtin__.uniqlblnum += 1
+	newlabel = "vm" + str(vm["id"]) + "_" + str(build_vars.uniqlblnum)
+	build_vars.uniqlblnum += 1
 	vm["emlabel"] = newlabel
 	print >>ofile, "\nunsigned int const %s[70] = { // vm%d emulator masks" % (newlabel, vmid),
 	# out IFS
@@ -151,20 +152,20 @@ def output_ic_tables(configuration,ofile):
 	print >>ofile, "\n\t0,"
 	output_ipcmask(ofile,ems)
 	print >>ofile, "\n};"
-    print >>ofile, "\nunsigned int const * const vm_ic_masks[8] = {"
+    print >>ofile, "\nunsigned int const * const vm_ic_masks[%d] = {" % (build_vars.max_num_thread + 1)
     # vm0 has no IC emulation
     print >>ofile, "\t(void *)0x0,"
-    for vmid in range(1,8):
+    for vmid in range(1,build_vars.max_num_guest+1):
 	if vmid in configuration:
 	    vm = configuration[vmid]
 	    print >>ofile, "\t&%s[0]," % (vm["masklabel"])
 	else:
 	    print >>ofile, "\t(void *)0x0,"
     print >>ofile, "};"
-    print >>ofile, "\nunsigned int const * const vm_ic_emulators[8] = {"
+    print >>ofile, "\nunsigned int const * const vm_ic_emulators[%d] = {" % (build_vars.max_num_thread + 1)
     # vm0 has no IC emulation
     print >>ofile, "\t(void *)0x0,"
-    for vmid in range(1,8):
+    for vmid in range(1,build_vars.max_num_guest+1):
 	if vmid in configuration:
 	    vm = configuration[vmid]
 	    print >>ofile, "\t&%s[0]," % (vm["emlabel"])
@@ -214,33 +215,6 @@ def output_ic_tables(configuration,ofile):
 	else:
 	    print >>ofile, "(void*)0, ",
     print >>ofile, "\n};"
-    # output the scheduler VM list
-    print >>ofile, "\nint const vm_list[8] = { ",
-    print >>ofile, "0,",
-    for vmid in range(1,8):
-	if vmid in configuration:
-	    vm = configuration[vmid]
-	    if "entry" not in vm:
-		print "Missed 'entry' option in vm%s" % (vmid)
-		exit(1)
-	    print >>ofile, "%s," % (vm["entry"]),
-	else:
-	    print >>ofile, "0,",
-    print >>ofile, " };"
-    # output VM options
-    print >>ofile, "\nint const vm_options[8] = { ",
-    print >>ofile, "0,",
-    for vmid in range(1,8):
-	if vmid in configuration:
-	    vm = configuration[vmid]
-	    if ("irqpolling" not in vm) or (vm["irqpolling"] == 0):
-		print >>ofile, "0,",
-	    else:
-		print >>ofile, "1,",
-	else:
-	    print >>ofile, "0,",
-    print >>ofile, " };"
-
 
 def output_board_setup(configuration,ofile):
     print >>ofile, "#include <asm/pic32mz.h>\n"

@@ -21,6 +21,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include    "tinyVP.h"
 #include    "mipsasm.h"
 #include    "mips.h"
 #include    "irq.h"
@@ -40,7 +41,7 @@ volatile unsigned long long current_wall_time;
 
 int need_time_update = 0;
 
-static struct timer timer_array[MAX_NUM_GUEST + 1];
+static struct timer timer_array[MAX_NUM_THREAD + 1];
 static struct timer timerQ = {
     .next = &timerQ,
 };
@@ -210,7 +211,7 @@ unsigned gcount = read_g_cp0_count();
 unsigned gcompare = read_g_cp0_compare();;
 printf("time_irq: [%d] timer->time=%llx lcount=%llx current_wall_time=%llx current_lcount=%llx\n",timer-timer_array,timer->time,timer->lcount,current_wall_time,current_lcount);
 printf("\tCOUNT=%08x COMPARE=%08x timerQ=%08x next=%08x prev=%08x G.COUNT=%08x G.COMPARE=%08x\n",read_cp0_count(),read_cp0_compare(),(void *)&timerQ, timerQ.next, timerQ.prev,gcount,gcompare);
-for (i=0; i <= MAX_NUM_GUEST; i++)
+for (i=0; i <= MAX_NUM_THREAD; i++)
     printf("\t%08x: time=%llx lcount=%llx flag=%08x cnt=%d; next=%08x prev=%08x\n",
 (void *)&timer_array[i],timer_array[i].time, timer_array[i].lcount, timer_array[i].flag, timer_array[i].cnt, timer_array[i].next, timer_array[i].prev);
     printf("\t%08x: time=%llx lcount=%llx flag=%08x cnt=%d; next=%08x prev=%08x\n",

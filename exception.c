@@ -30,7 +30,8 @@
 #include    "thread.h"
 #include    "time.h"
 
-unsigned int reschedule_vm;
+unsigned int *irq_sp;
+unsigned int reschedule_thread;
 
 char panicbuf[128];
 
@@ -41,7 +42,7 @@ unsigned long gpr_read(struct exception_frame *exfr, unsigned int rt)
 	unsigned int ie;
 	unsigned long val;
 
-	if (vz_mode(exfr)) {
+	if (srs(exfr)) {
 		im_up(ie);
 		write_cp0_srsctl(exfr->cp0_srsctl);
 		ehb();
@@ -90,7 +91,7 @@ void gpr_write(struct exception_frame *exfr, unsigned int rt, unsigned long val)
 {
 	unsigned int ie;
 
-	if (vz_mode(exfr)) {
+	if (srs(exfr)) {
 		im_up(ie);
 		write_cp0_srsctl(exfr->cp0_srsctl);
 		ehb();
@@ -191,8 +192,8 @@ void panic_print(struct exception_frame *exfr, unsigned long sp, unsigned long f
 	    mfgc0(14, 0), mfgc0(12, 0), mfgc0(13, 0), mfgc0(14, 2), mfgc0(13, 5), mfgc0(15, 1), mfgc0(30, 0));
 	uart_writeline(console_uart, panicbuf);
 
-	sprintf(panicbuf, "Thread: vmid=%d IRQ=%d IPL=%d\n",
-	    current->vmid, current->injected_irq, current->injected_ipl);
+	sprintf(panicbuf, "Thread%d: SRS=%d gid=%d IRQ=%d IPL=%d\n",
+	    current->tid, current->srs, current->gid, current->injected_irq, current->injected_ipl);
 	uart_writeline(console_uart, panicbuf);
 	sprintf(panicbuf, "\tGuest:  EPC=%08x Status=%08x Cause=%08x NestedEPC=%08x EXC=%08x\n",
 	    current->g_cp0_epc, current->g_cp0_status, current->g_cp0_cause, current->g_cp0_nested_epc, current->g_cp0_nested_exc);
@@ -223,7 +224,7 @@ void panic_thread(struct exception_frame *exfr, char *message)
 {
 	unsigned int gp,sp,fp,ra;
 
-	if (!get_context__shortprolog(exfr->cp0_context))
+	if (in_exc_stack(exfr->cp0_status))
 		panic();
 
 	__asm__ __volatile__("move  %0, $28"
@@ -240,18 +241,18 @@ void panic_thread(struct exception_frame *exfr, char *message)
 	uart_writeline(console_uart, "\n");
 	panic_print(exfr, sp, fp, gp, ra);
 
-	IRQ_wait_exit();
+	IRQ_nonexc_exit();
 }
 
 static void do_cu(struct exception_frame *exfr)
 {
 	if (get_cause__ce(exfr->cp0_cause) == 1) {
 		set_exfr_status__cu1(exfr);
-		if (fpu_owner == current->vmid)
+		if (fpu_owner == current->tid)
 			return;
 		if (fpu_owner >= 0)
 			save_fpu_regs(fpu_owner);
-		fpu_owner = current->vmid;
+		fpu_owner = current->tid;
 		restore_fpu_regs();
 		return;
 	}
@@ -261,11 +262,11 @@ static void do_cu(struct exception_frame *exfr)
 static void do_dsp(struct exception_frame *exfr)
 {
 	set_exfr_status__mx(exfr);
-	if (dsp_owner == current->vmid)
+	if (dsp_owner == current->tid)
 		return;
 	if (dsp_owner >= 0)
 		save_dsp_regs(dsp_owner);
-	dsp_owner = current->vmid;
+	dsp_owner = current->tid;
 	restore_dsp_regs();
 }
 
@@ -320,7 +321,7 @@ void do_gpsi(struct exception_frame *exfr)
 				current->last_used_lcount = gcount;
 				gpr_write(exfr, gpr, (unsigned int)gcount);
 				if (recalculate_late_timer(gcount))
-					execute_timer_IRQ(exfr, current->vmid);
+					execute_timer_IRQ(exfr, current->tid);
 				if (is_time_trace()) {
 					sprintf(panicbuf, "MFC0 COUNT: %08x\n",(unsigned int)gcount);
 					uart_writeline(console_uart, panicbuf);
@@ -382,7 +383,7 @@ void do_gpsi(struct exception_frame *exfr)
 					sprintf(panicbuf, "MTC0 COUNT: gcount=%llx diff=%llxx\n",gcount,gcount - current->cp0_gtoffset);
 					uart_writeline(console_uart, panicbuf);
 				}
-				timer_g_irq_reschedule(current->vmid, gcount - current->cp0_gtoffset);
+				timer_g_irq_reschedule(current->tid, gcount - current->cp0_gtoffset);
 				return;
 			case CP0_compare_MERGED:
 				val = gpr_read(exfr, gpr);
@@ -400,7 +401,7 @@ void do_gpsi(struct exception_frame *exfr)
 
 				// check - is it a chronically late?
 				if (recalculate_late_timer(gcount)) {
-					execute_timer_IRQ(exfr, current->vmid);
+					execute_timer_IRQ(exfr, current->tid);
 					if (is_time_trace()) {
 						sprintf(panicbuf, "MTC0 COMPARE: %08x\n",val);
 						uart_writeline(console_uart, panicbuf);
@@ -409,7 +410,7 @@ void do_gpsi(struct exception_frame *exfr)
 					}
 					return;
 				}
-				timer_g_irq_reschedule(current->vmid, gcount - current->cp0_gtoffset);
+				timer_g_irq_reschedule(current->tid, gcount - current->cp0_gtoffset);
 				if (is_time_trace()) {
 					sprintf(panicbuf, "MTC0 COMPARE2: %08x\n",val);
 					uart_writeline(console_uart, panicbuf);
@@ -519,7 +520,7 @@ void do_EXC(struct exception_frame *exfr)
 	unsigned long long gcount;
 
 	if (is_exc_trace()) {
-		sprintf(panicbuf, "VM%d: exception %d, gcause=%d\n", current->vmid, cause, gcause);
+		sprintf(panicbuf, "Thread%d: exception %d, gcause=%d\n", current->tid, cause, gcause);
 		uart_writeline(console_uart, panicbuf);
 	}
 	current->exception_cause = (current->exception_cause << 8) | cause;
@@ -562,28 +563,30 @@ void do_EXC(struct exception_frame *exfr)
 					current->thread_flags &= ~THREAD_FLAGS_CHRONIC;
 					current->lcompare = gcount;
 					if (recalculate_late_timer(gcount))
-						execute_timer_IRQ(exfr, current->vmid);
+						execute_timer_IRQ(exfr, current->tid);
 					else
-						timer_g_irq_reschedule(current->vmid, gcount - current->cp0_gtoffset);
+						timer_g_irq_reschedule(current->tid, gcount - current->cp0_gtoffset);
 				}
 			}
 			return;
 		}
 		break;
 	case CAUSE_SYS:
-		if (inst_SYSCALL_F0000(exfr->cp0_badinst)) {
-			compute_return_epc(exfr);
-			current->thread_flags &= ~THREAD_FLAGS_RUNNING;
-			if (reschedule_vm) {
-				unsigned int vmid;
+		if (is_kernel(exfr->cp0_status)) {
+			if (inst_SYSCALL_F0000(exfr->cp0_badinst)) {
+				compute_return_epc(exfr);
+				current->thread_flags &= ~THREAD_FLAGS_RUNNING;
+				if (reschedule_thread) {
+					unsigned int tid;
 
-				vmid = reschedule_vm;
-				reschedule_vm = 0;
-				switch_to_vm(exfr, vmid);
+					tid = reschedule_thread;
+					reschedule_thread = 0;
+					switch_to_thread(exfr, tid);
+					return;
+				}
+				reschedule(exfr);
 				return;
 			}
-			reschedule(exfr);
-			return;
 		}
 		break;
 	}

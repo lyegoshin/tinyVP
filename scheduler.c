@@ -21,25 +21,25 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include    "tinyVP.h"
 #include    "mips.h"
 #include    "thread.h"
 #include    "time.h"
 
 unsigned long vm0_thread;
-unsigned long thread_size = VM_FRAME_SIZE;
 unsigned int fpu_owner;
 unsigned int dsp_owner;
 unsigned int reschedule_flag;
 
 #include "uart.h"
-void switch_to_vm(struct exception_frame *exfr, unsigned int vmid)
+void switch_to_thread(struct exception_frame *exfr, unsigned int thread)
 {
-	register struct thread *v0 = get_vm_fp(vmid);
+	register struct thread *v0 = get_thread_fp(thread);
 
 	if (v0->thread_flags & THREAD_FLAGS_STOPPED)
 		return;
 
-	if (current->vmid) {
+	if (current->gid) {
 
 		current->g_cp0_index        = read_g_cp0_index();
 		current->g_cp0_entryhi      = read_g_cp0_entryhi();
@@ -95,11 +95,13 @@ void switch_to_vm(struct exception_frame *exfr, unsigned int vmid)
 	current = v0;
 
 	write_cp0_guestctl1(current->cp0_guestctl1);
+	write_cp0_entryhi(current->cp0_entryhi);
+	ehb();
 	current->exfr.cp0_status &= ~(CP0_STATUS_CU1|CP0_STATUS_MX|CP0_STATUS_CPU_CONTROL);
 	current->exfr.cp0_status |= (exfr->cp0_status & CP0_STATUS_CPU_CONTROL);
 	current->exfr.gpr[SP] = exfr->gpr[SP]; // move stack ptr to today's level
 
-	if (vmid) {
+	if (current->gid) {
 		if (current->g_cp0_wired) {
 			int i;
 			for ( i=0; i < current->g_cp0_wired; i++ ) {
@@ -163,14 +165,14 @@ void switch_to_vm(struct exception_frame *exfr, unsigned int vmid)
 	return;
 }
 
-int request_switch_to_vm(struct exception_frame *exfr, unsigned int vmid)
+int request_switch_to_thread(struct exception_frame *exfr, unsigned int thread)
 {
-	if (get_context__shortprolog(exfr->cp0_context)) {
-		switch_to_vm(exfr, vmid);
+	if (!in_exc_stack(exfr->cp0_status)) {
+		switch_to_thread(exfr, thread);
 		return 1;
 	}
-	if (reschedule_vm < vmid)
-		reschedule_vm = vmid;
+	if (reschedule_thread < thread)
+		reschedule_thread = thread;
 	return 0;
 }
 
@@ -182,106 +184,126 @@ void reschedule(struct exception_frame *exfr)
 	int ipl;
 	int tpl;
 	int pri;
-	int vm;
-	int vmid;
+	int thr;
+	int thread;
 	int irq;
 	unsigned int voff;
 
-	/* TBD: ... !get_context__shortprolog ? ... */
-	if (!current->vmid) {
-		// VM0 has an absolute priority and can't execute G.WAIT
+	if (!current->tid) {
+		// Thread0 has an absolute priority and can't execute G.WAIT
 		// ... only if no WAIT st...
 		if (!get_exfr_context__waitflag(exfr))
 			return;
 	}
 
 	weight = (unsigned int)(-1);
-	vm = 0;
+	thr = 0;
 	ipl = get_status__ipl(exfr->cp0_status);
 	pri = 0;
-	for (vmid=1; vmid<=MAX_NUM_GUEST; vmid++) {
-		if (!vm_list[vmid])
+	for (thread=1; thread <= MAX_NUM_THREAD; thread++) {
+		if (!vm_list[thread])
 			continue;
 
-		next = get_vm_fp(vmid);
+		next = get_thread_fp(thread);
 		if (!(next->thread_flags & THREAD_FLAGS_RUNNING))
 			continue;
 		if (next->thread_flags & THREAD_FLAGS_STOPPED)
 			continue;
 
-		// skip low IPL VMs, IRQ should go first
+		// skip low IPL threads, IRQ should go first
 		tpl = get_status__ipl(next->exfr.cp0_status);
 		if (tpl < ipl)
 			continue;
 		if (tpl < pri)
 			continue;
 
-		tmp = next->reschedule_count + (2 * vmid);
+		tmp = next->reschedule_count + (2 * thread);
 		if (tmp < weight) {
 			pri = tpl;
 			weight = tmp;
-			vm = vmid;
+			thr = thread;
 		}
 	}
 
-	if (vm != current->vmid) {
-		switch_to_vm(exfr, vm);
-
+	if (thr != current->tid) {
+		if (!in_exc_stack(exfr->cp0_status)) {
+			switch_to_thread(exfr, thr);
+			return;
+		}
+		reschedule_thread = thr;
 	}
 }
 
-void init_vm(unsigned int vmid, int traceflag)
+void init_thread(unsigned int thread, int traceflag)
 {
-	struct thread *thread = get_vm_fp(vmid);
-	struct exception_frame *exfr = &(thread->exfr);
+	struct thread *next = get_thread_fp(thread);
+	struct exception_frame *exfr = &(next->exfr);
 
-	bzero((unsigned long)thread, sizeof(struct thread));
+	bzero((unsigned long)next, sizeof(struct thread));
 
-	thread->vmid                =   vmid;
-	thread->injected_irq        =   -1;
-	thread->interrupted_irq        =   -1;
-	thread->last_interrupted_irq   =   -1;
-	thread->last_used_lcount = current_lcount;
-	thread->g_cp0_count = (unsigned int)current_lcount;
-	thread->lcompare = current_lcount - 1;
-	thread->g_cp0_compare = (unsigned int)(thread->lcompare);
-	init_vmic(thread);
+	next->tid                   =   thread;
+	next->srs                   =   vm_options[thread] >> 24;
+	next->gid                   =   (vm_options[thread] >> 16) & 0xff;
+	exfr->cp0_epc               =   vm_list[thread];
+	exfr->cp0_srsctl            =   next->srs << CP0_SRSCTL_PSS_SHIFT;
+	next->cp0_entryhi           =   next->tid << CP0_ENTRYHI_ASID_SHIFT;
+	if (!traceflag)
+		next->thread_flags        =   THREAD_FLAGS_RUNNING;
+	else
+		next->thread_flags        =   traceflag;
 
-	thread->g_cp0_status        = CP0_STATUS_BEV | CP0_STATUS_CU0 | CP0_STATUS_ERL;
-//        thread->g_cp0_status        = 0;
+	if (!next->gid) {
+		// non-Guest: kernel, supervisor or user
+		unsigned mode = vm_options[thread] & VM_OPTION_KSU;
+		exfr->cp0_context = thread << CP0_CONTEXT_VM_SHIFT;
+		exfr->cp0_status  = CP0_STATUS_INIT_ROOT | mode;
+		exfr->gpr[SP] = vm_sp[thread];
+		exfr->cp0_epc = vm_list[thread];
+		return;
+	}
 
-	thread->g_cp0_epc           = vm_list[vmid];
+	// Guest thread initialization
 
-	thread->g_cp0_ebase         = CP0_G_EBASE_INIT;
+	init_vmic(next);
 
-	thread->g_cp0_intctl        = CP0_G_INTCTL_INIT;
+	next->injected_irq        =   -1;
+	next->interrupted_irq        =   -1;
+	next->last_interrupted_irq   =   -1;
+	next->last_used_lcount = current_lcount;
+	next->g_cp0_count = (unsigned int)current_lcount;
+	next->lcompare = current_lcount - 1;
+	next->g_cp0_compare = (unsigned int)(next->lcompare);
 
-	thread->g_cp0_compare       = read_cp0_count();
+	next->g_cp0_status        = CP0_STATUS_BEV | CP0_STATUS_CU0 | CP0_STATUS_ERL;
+//        next->g_cp0_status        = 0;
 
-	thread->cp0_guestctl0ext    = CP0_GUESTCTL0EXT_INIT;
-	thread->cp0_guestctl1       = (vmid << CP0_GUESTCTL1_RID_SHIFT) | vmid;
-	thread->cp0_guestctl3       = vmid;
+	next->g_cp0_epc           = vm_list[thread];
 
-	exfr->cp0_context       = vmid << CP0_CONTEXT_VM_SHIFT;
-//        exfr->cp0_epc           = (unsigned long)&IRQ_wait_exit;
-	exfr->cp0_epc           = vm_list[vmid];
-	exfr->cp0_srsctl        = vmid << CP0_SRSCTL_PSS_SHIFT;
+	next->g_cp0_ebase         = CP0_G_EBASE_INIT;
+
+	next->g_cp0_intctl        = CP0_G_INTCTL_INIT;
+
+	next->g_cp0_compare       = read_cp0_count();
+
+	next->cp0_guestctl0ext    = CP0_GUESTCTL0EXT_INIT;
+	next->cp0_guestctl1       = (next->gid << CP0_GUESTCTL1_RID_SHIFT) | next->gid;
+	next->cp0_guestctl3       = next->gid;
+
+	exfr->cp0_context       = thread << CP0_CONTEXT_VM_SHIFT;
+//        exfr->cp0_epc           = (unsigned long)&IRQ_nonexc_exit;
 	exfr->cp0_guestctl0     = CP0_GUESTCTL0_INIT;
 	exfr->cp0_status        = CP0_STATUS_INIT;
-
-	if (!traceflag)
-		thread->thread_flags        =   THREAD_FLAGS_RUNNING;
-	else
-		thread->thread_flags        =   traceflag;
 }
 
 void init_scheduler()
 {
-	int vmid;
+	int thread;
 
 	write_cp0_guestctl1(0);
 
-	current->vmid               =   0;
+	current->tid               =   0;
+	current->srs               =   0;
+	current->gid               =   0;
 	current->thread_flags       =   THREAD_FLAGS_RUNNING;
 	//current->preempt_count      =   0;
 	//current->reschedule_count   =   0;
@@ -291,11 +313,11 @@ void init_scheduler()
 	write_g_cp0_srsmap(0);
 	write_g_cp0_srsmap2(0);
 
-	for (vmid=1; vmid<MAX_NUM_GUEST; vmid++) {
-		if (!vm_list[vmid])
+	for (thread=1; thread <= MAX_NUM_THREAD; thread++) {
+		if (!vm_list[thread])
 			continue;
 
-		init_vm(vmid, 0);
+		init_thread(thread, 0);
 	}
 }
 

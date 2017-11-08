@@ -88,8 +88,8 @@ struct vmic {
 	unsigned int off[214];  // OFF regs
 };
 
-extern unsigned int const *const vm_ic_masks[MAX_NUM_GUEST + 1];
-extern unsigned int const *const vm_ic_emulators[MAX_NUM_GUEST + 1];
+extern unsigned int const *const vm_ic_masks[];
+extern unsigned int const *const vm_ic_emulators[];
 
 // only IFS and IEC addrs are here
 static inline unsigned int get_icaddr2irq(unsigned long addr, unsigned int bit)
@@ -110,12 +110,12 @@ static inline unsigned int get_irq2off(unsigned int irq)
 	return  read_vmic_off(IC_OFF_BASE_OFFSET + (irq * 4));
 }
 
-static inline volatile unsigned int get_ic_mask(unsigned int vm, unsigned long vaoff,
+static inline volatile unsigned int get_ic_mask(unsigned int tid, unsigned long vaoff,
 			 unsigned int *emulator_flag)
 {
 	vaoff -= IC_IFS_BASE_OFFSET;    // skip headers
-	*emulator_flag = *(vm_ic_emulators[vm] + (vaoff/16));
-	return *(vm_ic_masks[vm] + (vaoff/16));
+	*emulator_flag = *(vm_ic_emulators[tid] + (vaoff/16));
+	return *(vm_ic_masks[tid] + (vaoff/16));
 }
 
 static inline volatile unsigned int *ic_ifs(unsigned int irq, unsigned int *ifs_mask)

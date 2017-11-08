@@ -38,9 +38,13 @@ I. Main distinctive features of tinyVP:
   allows a very effective use of TLB array - in fact, 2-3 guests may fit 16 TLB
   without frequent refills. However, on-demand refill is supported.
 
-4.  tinyVP hypervizor is designed to use shadow sets for guests. It can be
-  changed in future but today PIC32MZEF has 8 shadow sets and hypervisor can be
-  configured up to 7 guests.
+4.  tinyVP hypervizor is designed to use shadow sets for guests and root thread.
+  It can be changed in future but today PIC32MZEF has 8 shadow sets and
+  hypervisor can be configured up to 7 guests. Thread may be configured into
+  shadow sets or share shadow set 0 with root kernel. Thread can run in kernel
+  or user mode. User mode thread requires a configuration of thread map and
+  tinyVP provides memory management in similar way as memory management for
+  guest.
 
 5.  No dynamic objects inside hypervisor exist so far. It increases a security
   and reliablity by eradicating memory leaks and minimizing memory corruption
@@ -123,3 +127,8 @@ II. List of tinyVP components and state (as 7/4/17)
   - Human command controller, optional      (Done partually, needs update)
 
   - Simplified build harness                (Done)
+
+  - Multiple root kernel or user threads    (Done)
+
+  - VIRTIO style threads and guests frame exchange
+					    (-)

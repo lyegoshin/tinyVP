@@ -25,8 +25,7 @@
 #define _MIPSASM_H
 
 // #define EBASE                       0x9D000000
-#define STACK_SIZE_MASK             0x1FFF
-#define MAX_NUM_GUEST               7
+#define CACHE_LINE_SIZE             32
 #define VMID_ERET                   (7 | (7 << 16))   // use VM7 for LLbit cleaning
 
 #define cpu_has_dsp             1
@@ -69,8 +68,9 @@
 
 #define CP0_CONTEXT             $4
 // #define CP0_CONTEXT_WAITFLAG    0x80000000
-#define CP0_CONTEXT_VPN_SHIFT   (9)
-#define CP0_CONTEXT_VM_SHIFT    (23)
+#define CP0_CONTEXT_VM_LEN      8
+#define CP0_CONTEXT_VM_SHIFT    23
+#define CP0_CONTEXT_WAITFLAG_SHIFT  31
 
 #define CP0_WIRED               $6
 
@@ -80,6 +80,7 @@
 
 #define CP0_STATUS              $12
 #define CP0_STATUS_CU0          0x10000000
+#define  CP0_STATUS_CU0_SHIFT   28
 #define CP0_STATUS_CU1          0x20000000
 #define CP0_STATUS_CU2          0x40000000
 #define CP0_STATUS_CU3          0x80000000
@@ -92,12 +93,16 @@
 #define CP0_STATUS_SR           0x00100000
 #define CP0_STATUS_NMI          0x00080000
 #define CP0_STATUS_MODE         0x00000010
+#define CP0_STATUS_KSU          0x00000018
+#define CP0_STATUS_KSU_LEN      2
+#define CP0_STATUS_KSU_SHIFT    3
 #define CP0_STATUS_ERL          0x00000004
 #define CP0_STATUS_EXL          0x00000002
 #define CP0_STATUS_IE           0x00000001
-#define CP0_STATUS_INIT         (CP0_STATUS_IE|CP0_STATUS_CU0)
+#define CP0_STATUS_INIT         (CP0_STATUS_IE)
 #define CP0_STATUS_CPU_CONTROL  (0x0004FF00)
 #define CP0_STATUS_ROOTMASK     (CP0_STATUS_SR|CP0_STATUS_NMI)
+#define CP0_STATUS_INIT_ROOT    (CP0_STATUS_IE)
 
 #define CP0_INTCTL              $12, 1
 #define CP0_INTCTL_INIT         0x00000020
@@ -105,13 +110,13 @@
 
 
 #define CP0_GUESTCTL0           $12, 6
-#define CP0_GUESTCTL0_GM        31
+#define CP0_GUESTCTL0_GM_SHIFT  31
 #define CP0_GUESTCTL0_INIT      0xBD000001 /* GM,MC,CP0=1,AT=3,CG,SFC1 */
 //#define CP0_GUESTCTL0_INIT      0x9D000001 /* GM,CP0=1,AT=3,CG,SFC1 */
 //#define CP0_GUESTCTL0_INIT      0x9F000001 /* GM,CP0=1,GT=1,AT=3,CG,SFC1 */
 //#define CP0_GUESTCTL0_INIT      0xBF000001 /* GM,MC,CP0=1,GT=1,AT=3,CG,SFC1 */
 #define CP0_GUESTCTL1           $10, 4
-#define CP0_GUESTCTL1_RID_SHIFT (16)
+#define CP0_GUESTCTL1_RID_SHIFT 16
 
 #define CP0_GUESTCTL0EXT        $11, 4
 #define CP0_GUESTCTL0EXT_FCD    0x00000008
@@ -122,8 +127,11 @@
 #define CP0_KSCR1               $31, 3
 #define CP0_EPC                 $14
 #define CP0_SRSCTL              $12, 2
-#define CP0_SRSCTL_PSS_SHIFT    (6)
+#define CP0_SRSCTL_PSS_SHIFT    6
+#define CP0_SRSCTL_PSS_LEN      4
+#define CP0_SRSCTL_PSS_MASK     0x3c0
 #define CP0_ENTRYHI             $10
+#define  CP0_ENTRYHI_ASID_SHIFT 0
 #define CP0_ENTRYLO0            $2
 #define CP0_ENTRYLO1            $3
 #define CP0_PAGEMASK            $5

@@ -65,8 +65,12 @@ SoC with non-VZ compatible interrupt controller. (I think about changing it for
 a single guest configuration)
 
   Tight memory requirement in PIC32MZ-EF SoC (only 512KB are available) enforces
-yet another decision - a single hypervisor stack is used for all 7 guests.
-Shadow register sets are used to increase interrupt handling performance.
+yet another decision - a single hypervisor stack is used for any exception/IRQ.
+Shadow register sets are used to increase interrupt handling performance and
+each guest has a separate SRS.
+
+  Root multithreading is implemented. Each thread should have a separate stack
+and can be placed in some shadow register set too (or share SRS0).
 
 
 Security Considerations

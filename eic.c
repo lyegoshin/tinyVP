@@ -55,7 +55,7 @@ void exc_injected_handler(struct exception_frame *exfr)
 	current->interrupted_ipl = current->injected_ipl;
 
 	if (is_int_trace()) {
-		sprintf(str, "VM%d: interrupt %d, ipl %d\n", current->vmid, current->interrupted_irq, current->interrupted_ipl),
+		sprintf(str, "Thread%d: interrupt %d, ipl %d\n", current->tid, current->interrupted_irq, current->interrupted_ipl),
 		uart_writeline(console_uart, str);
 	}
 
@@ -63,15 +63,15 @@ void exc_injected_handler(struct exception_frame *exfr)
 }
 
 // insert IRQ
-void insert_IRQ(struct exception_frame *exfr, unsigned int vm, int irq, unsigned int ipl)
+void insert_IRQ(struct exception_frame *exfr, unsigned int thread, int irq, unsigned int ipl)
 {
 	unsigned int oldstatus;
-	unsigned int oldvm;
+	unsigned int oldtid;
 	unsigned int voff;
 	unsigned int gc2;
 	struct thread *next;
 
-	next  = get_vm_fp(vm);
+	next  = get_thread_fp(thread);
 	if (next->injected_ipl) {
 		if (next == current)
 			gc2 = read_cp0_guestctl2();
@@ -90,10 +90,10 @@ void insert_IRQ(struct exception_frame *exfr, unsigned int vm, int irq, unsigned
 	if (next->injected_ipl >= ipl)
 		return;
 
-	oldvm = current->vmid;
-	if (vm != oldvm) {
+	oldtid = current->tid;
+	if (thread != oldtid) {
 		if ((get_status__ipl(next->g_cp0_status) < ipl) ||
-		    !request_switch_to_vm(exfr, vm)) {
+		    !request_switch_to_thread(exfr, thread)) {
 
 			next->thread_flags |= THREAD_FLAGS_RUNNING;
 
@@ -102,7 +102,7 @@ void insert_IRQ(struct exception_frame *exfr, unsigned int vm, int irq, unsigned
 			next->injected_irq = irq;
 			next->injected_ipl = ipl;
 			if (next->injected_ipl &&
-			    !(vm_options[next->vmid] & VM_OPTION_POLLING))
+			    !(vm_options[next->tid] & VM_OPTION_POLLING))
 				next->cp0_guestctl0ext = CP0_GUESTCTL0EXT_NOFCD;
 
 			return;
@@ -115,32 +115,38 @@ void insert_IRQ(struct exception_frame *exfr, unsigned int vm, int irq, unsigned
 	inject_irq(irq, ipl, voff);
 	next->injected_irq = irq;
 	next->injected_ipl = ipl;
-	if (next->injected_ipl && !(vm_options[next->vmid] & VM_OPTION_POLLING))
+	if (next->injected_ipl && !(vm_options[next->tid] & VM_OPTION_POLLING))
 			write_cp0_guestctl0ext(CP0_GUESTCTL0EXT_NOFCD);
 	// return to guest
 	return;
 }
 
 // SW emulated IRQ to vm=vmid from time.c
-void execute_timer_IRQ(struct exception_frame *exfr, unsigned int vmid)
+void execute_timer_IRQ(struct exception_frame *exfr, unsigned int thread)
 {
 	unsigned int oldipl;
 	unsigned int oldstatus;
 	unsigned int oldvm;
 	unsigned int gstatus;
 	unsigned int ipl;
-	struct thread *next  = get_vm_fp(vmid);
+	struct thread *next  = get_thread_fp(thread);
 
+if (!next->gid) {
+char str[128];
+sprintf(str, "execute_timer_IRQ: tries a non-guest thread %d\n", thread);
+uart_writeline(console_uart, str);
+return;
+}
 	ipl = get_thread_timer_ipl(next);
 	set_thread_timer_irq(next);       // write IFS
-	if (current->vmid == vmid)
+	if (current->tid == thread)
 		set_g_cp0_cause(CP0_CAUSE_TI);
 	else
 		set_thread_g_cp0_cause__ti(next);
 
-	insert_sw_irq(vmid, IC_TIMER_IRQ);
+	insert_sw_irq(thread, IC_TIMER_IRQ);
 	next->waiting_irq_number++;
-	enforce_irq(exfr, vmid, IC_TIMER_IRQ);
+	enforce_irq(exfr, thread, IC_TIMER_IRQ);
 }
 
 //  IC write hook - move to proper file?
@@ -149,8 +155,14 @@ void insert_timer_IRQ(struct exception_frame *exfr, int irq)
 	unsigned int gipl;
 	unsigned int tipl;
 
+if (!current->gid) {
+char str[128];
+sprintf(str, "insert_timer_IRQ: tries a non-guest thread %d\n", current->tid);
+uart_writeline(console_uart, str);
+return;
+}
 	if ((read_g_cp0_cause() & CP0_CAUSE_TI) && get_thread_timer_mask(current)) {
-		insert_IRQ(exfr, current->vmid, irq, get_thread_timer_ipl(current));
+		insert_IRQ(exfr, current->tid, irq, get_thread_timer_ipl(current));
 	}
 }
 

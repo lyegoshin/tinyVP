@@ -93,7 +93,7 @@ unsigned long map_tmp_address(unsigned int *ie, unsigned long address, unsigned 
 
 void unmap_tmp_address(unsigned int *ie, unsigned long address)
 {
-	unsigned int vmid = current->vmid;
+	unsigned int gid = current->gid;
 
 	write_cp0_entryhi(MAP_TMP_ADDRESS);
 	__asm__ __volatile__("tlbp");
@@ -103,7 +103,7 @@ void unmap_tmp_address(unsigned int *ie, unsigned long address)
 		ehb();
 		__asm__ __volatile__("tlbwi"::);
 	}
-	write_cp0_guestctl1((vmid << CP0_GUESTCTL1_RID_SHIFT) | vmid);
+	write_cp0_guestctl1((gid << CP0_GUESTCTL1_RID_SHIFT) | gid);
 	im_down(*ie);
 }
 
@@ -155,7 +155,7 @@ int     emulate_rw(struct exception_frame *exfr, unsigned long address, unsigned
 	if ((ELo & ENTRYLO_SW_I) && IS_STORE_INST(opcode)) {
 		if (ELo & ENTRYLO_D) {
 			rt = decode_exception_instruction(exfr, &gpr);
-			printf("Guest%d: write %x (%d bytes) to %08x ignored\n", current->vmid, gpr, rt, address);
+			printf("Thread%d: write %x (%d bytes) to %08x ignored\n", current->tid, gpr, rt, address);
 		}
 		return 1;
 	}
@@ -224,9 +224,9 @@ void    do_TLB(struct exception_frame *exfr, unsigned int cause)
 	badvaddr = exfr->cp0_badvaddr;
 	offset = badvaddr >> 29;    // 8 elements in top level
 	pagemask = ~0xE0000000;
-	cpte = cpt_base[current->vmid] + offset;
+	cpte = cpt_base[current->tid] + offset;
 
-	context = exfr->cp0_context << CP0_CONTEXT_VPN_SHIFT;
+	context = exfr->cp0_context << (CP0_CONTEXT_VM_LEN + 1);
 	i = cpte_address_hash(context);
 	// is it in cache? - skip tree search
 	if (cpte_cache[i].cp0_context ==

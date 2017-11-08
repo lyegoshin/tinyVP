@@ -37,7 +37,27 @@ Semantics:
 
 .vm                                     - start a new VM description
 
-id = number                             - VM id. Required
+.thread                                 - start a new root thread
+
+id = number                             - VM or thread id. Required
+
+srs = number                            - Thread: SRS number for this thread.
+					  Default is 0
+
+gid = number                            - VM: Guest ID number for VM.
+					  Default is "id" value
+
+mode = kernel or user                   - Thread processor mode, kernel or user
+					  Default is kernel. Kernel mode thread
+					  doesn't require a separate memory map
+
+sp = size address init-stack-ptr        - In case of thread the stack must be
+					  supplied. For kernel mode thread -
+					  If there is no address field
+					  then stack will be allocated inside
+					  tinyVP kernel by configuration.
+					  If there is no init stack ptr then it
+					  set to end of that space space.
 
 regs = vaddress size flags [physaddr]
 registers = ...                         - device register block,
@@ -47,10 +67,10 @@ registers = ...                         - device register block,
        vaddress size flags [physaddr]   - One of lines in special regs block
 					  (after ".regs" line)
 
-entry = address                         - Guest entry point virtual address
-					  Required
+entry = address                         - Guest/thread entry point virtual
+					  address. Required
 
-elf = filename                          - Guest ELF binary file location.
+elf = filename                          - Guest/thread ELF binary file location.
 					  File is used to extract code/data
 					  sections addresses, sizes and
 					  alignments (alignments are not used)
@@ -239,9 +259,9 @@ vzdata =    0x80078000
 
     Start address of tinyVP data section in RAM
 
-vzstacktop  =   0x80080000
+vzstacksize  =   0x2000
 
-    End address of tinyVP data section in RAM - stack top
+    Size of VZ (tinyVP) IRQ stack in bytes. Must be power of 2 (mask is used)
 
 pmd-registers-base = value1 value2 ... value 7
 

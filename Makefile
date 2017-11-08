@@ -1,7 +1,8 @@
 include boards/$(BOARD)
 
 SOURCE = main.c uart.c printf.c ic.c sba.c log.c strlen.c time.c exception.c \
-	board_setup_tbl.c branch.c tlb.c tty.c eic.c console.c scheduler.c
+	board_setup_tbl.c branch.c tlb.c tty.c eic.c console.c scheduler.c  \
+	vm_options.c
 
 GENERATED_SOURCE = pte.c ic-tables.c
 
@@ -11,8 +12,8 @@ maps:
 build:  $(SOURCE) $(DEVCFG) boards/$(BOARD) $(CONFIG) $(BOARDINIT)
 	build-scripts/vz-conf.py $(BOARD) $(CONFIG) $(PLATFORM)
 	mips-mti-linux-gnu-gcc -O2 \
-		-DSTACKTOP=$(vzstacktop) -Deret_page=$(eret_page) \
-		-membedded-data -G4096 -mgpopt -march=mips32r2 -msoft-float \
+		-Deret_page=$(eret_page) \
+		-membedded-data -G65535 -mgpopt -march=mips32r2 -msoft-float \
 		-EL -fno-pic -mno-abicalls -mno-shared -fomit-frame-pointer \
 		-ffixed-fp -fno-builtin -I. -Iinclude \
 		$(BOOT) \
@@ -29,7 +30,7 @@ build:  $(SOURCE) $(DEVCFG) boards/$(BOARD) $(CONFIG) $(BOARDINIT)
 		--remove-section=.eh_frame_hdr \
 		a.out a.out.srec
 	mips-mti-linux-gnu-gcc -O2 \
-		-membedded-data -G4096 -mgpopt -march=mips32r2 -msoft-float \
+		-membedded-data -G65535 -mgpopt -march=mips32r2 -msoft-float \
 		-EL -fno-pic -mno-abicalls -mno-shared -fomit-frame-pointer \
 		-ffixed-fp -fno-builtin -I. -Iinclude \
 		$(DEVCFG) \

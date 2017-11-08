@@ -246,9 +246,9 @@ void    irq_set_prio_and_unmask(unsigned int irq, unsigned int prio)
 }
 
 // insert IRQ into IC. No attempt to inject it
-void    insert_sw_irq(unsigned int vmid, unsigned int irq)
+void    insert_sw_irq(unsigned int thread, unsigned int irq)
 {
-	struct thread *next  = get_vm_fp(vmid);
+	struct thread *next  = get_thread_fp(thread);
 	unsigned long vaoff;
 	unsigned int mask;
 	unsigned int value;
@@ -262,15 +262,24 @@ void    insert_sw_irq(unsigned int vmid, unsigned int irq)
 }
 
 // try to force IRQ - verify masks&IPLs
-void    enforce_irq(struct exception_frame *exfr, unsigned int vmid, unsigned int irq)
+void    enforce_irq(struct exception_frame *exfr, unsigned int thread, unsigned int irq)
 {
-	struct thread *next  = get_vm_fp(vmid);
+	struct thread *next  = get_thread_fp(thread);
 	unsigned long vaoff;
 	unsigned int mask;
 	unsigned int shift;
 	unsigned int value;
 	unsigned int cipl;
 
+if (!next->tid)
+    return;
+
+if (!next->gid) {
+char str[128];
+sprintf(str, "enforce_irq: tries a non-guest thread %d\n", thread);
+uart_writeline(console_uart, str);
+return;
+}
 	/* check IFS bit */
 	vaoff = KPHYS(ic_ifs(irq, &mask));
 	vaoff -= IC_BASE;
@@ -292,7 +301,7 @@ void    enforce_irq(struct exception_frame *exfr, unsigned int vmid, unsigned in
 	value = (value & mask) >> (shift + 2); // IRQ CPU IPL
 
 	// mask&IPL enables IRQ, insert it into guest
-	insert_IRQ(exfr, vmid, irq, value);
+	insert_IRQ(exfr, thread, irq, value);
 }
 
 // execute a HW IRQ pass-through
@@ -300,6 +309,7 @@ int execute_IRQ(struct exception_frame *exfr, unsigned int irq, unsigned int ipl
 {
 	emulator_irq *irq_emulator;
 	unsigned int vm;
+	unsigned int thread;
 
 	irq_emulator = get_irq2emulator(irq);
 	if (irq_emulator) {
@@ -307,11 +317,11 @@ int execute_IRQ(struct exception_frame *exfr, unsigned int irq, unsigned int ipl
 			return 1;
 	}
 
-	vm = get_irq2vm(irq);
-	if (vm) {
+	thread = get_irq2vm(irq);
+	if (thread) {
 		irq_mask(irq);
-		insert_sw_irq(vm, irq);
-		enforce_irq(exfr, vm, irq);
+		insert_sw_irq(thread, irq);
+		enforce_irq(exfr, thread, irq);
 		return 1;
 	}
 	return 0;
@@ -432,7 +442,7 @@ unsigned long emulate_read_ic(struct exception_frame *exfr, unsigned long vaoff,
 	}
 #endif
 
-	mask = get_ic_mask(current->vmid, vaoff, &emulator_flag);
+	mask = get_ic_mask(current->tid, vaoff, &emulator_flag);
 	value = *KSEG1(vareg);
 
 	value &= mask;      // mask does NOT have the emulated bits
@@ -453,7 +463,7 @@ unsigned long emulate_write_ic(struct exception_frame *exfr,
 	unsigned long ret;
 	unsigned int emulator_flag;
 
-	*mask = get_ic_mask(current->vmid, vaoff, &emulator_flag);
+	*mask = get_ic_mask(current->tid, vaoff, &emulator_flag);
 
 	ret = gpr & *mask;           // mask does NOT includes the emulated bits
 
@@ -771,7 +781,7 @@ emulator_ic_write   interrupt_ic;
 unsigned int        interrupt_ic(struct exception_frame *exfr, unsigned int irq)
 {
 	/* start IRQ in vm ... */
-	enforce_irq(exfr, current->vmid, irq);
+	enforce_irq(exfr, current->tid, irq);
 }
 
 extern emulator_irq    interrupt_irq;

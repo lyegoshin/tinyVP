@@ -21,6 +21,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include    "tinyVP.h"
 #include    "mipsasm.h"
 
 .section .text.init, "ax"
@@ -141,12 +142,14 @@ cacheerr:
 // ==================================================
 
 	.org    BOOTOFFSET + 0x180
+
 EXC_entry:
 	mfc0    k0, CP0_CONTEXT
-	bltz    k0, EXC_wait_entry  // Idle mode
+	ext     k1, k0, CP0_CONTEXT_VM_SHIFT, CP0_CONTEXT_VM_LEN + 1
+	bnez    k1, EXC_nonexc_entry      // idle or guest or thread
 	 mfc0   k1, CP0_GUESTCTL0
 
-	bltz    k1, EXC_wait_g_entry    // Guest mode
+	bltz    k1, _clear_g_ll_cont    // exit to ERET during G.LLbit clearing
 	 nop
 
 	j       EXC_entry_continue
@@ -188,17 +191,17 @@ _bzero:
 // =================================================
 
 	.org    BOOTOFFSET + 0x200
-IRQ_entry:
-	mfc0    k0, CP0_CONTEXT
-	bltz    k0, IRQ_wait_entry  // Idle mode
-	 mfc0   k1, CP0_GUESTCTL0
 
-	bltz    k1, IRQ_wait_entry  // Guest mode
-	 nop
+IRQ_entry:
+	// Guest uses SRS, so we are free to use K0/K1 (Thread doesn't use it)
+	mfc0    k0, CP0_CONTEXT
+	ext     k1, k0, CP0_CONTEXT_VM_SHIFT, CP0_CONTEXT_VM_LEN + 1
+	bnez    k1, IRQ_nonexc_entry // idle or guest or thread
+	 mfc0   k1, CP0_STATUS
 
 #if (BOOTOFFSET != 0)
 	b       IRQ_entry_continue
-	 mfc0    k1, CP0_STATUS
+	 nop
 
 // =================================================
 
@@ -208,47 +211,37 @@ IRQ_entry:
 // =================================================
 
 IRQ_entry_continue:
-#else
-	mfc0    k1, CP0_STATUS
 #endif
-// Long way: non-Guest, thread mode (kernel or user)
-	sll     k1, 3               // Status.CU0
-	bltz    k1, 1f
-	 move   k1, sp              // kernel thread, keep SP
-
-	mfc0    k1, CP0_KSCR0       // user thread, restore SP
-
-	sw      gp, PTR_GP - FULL_INTERRUPT_FRAME_SIZE(k1)  // gp
-	la      gp, _gp
-	sw      fp, PTR_FP - FULL_INTERRUPT_FRAME_SIZE(k1)  // fp
-	ori     fp, sp, STACK_SIZE_MASK
-	xori    fp, fp, STACK_SIZE_MASK
-
+// IRQ on top of IRQ or exception on top of IRQ or main kernel thread
+// FP, GP, SP are valid. K0/K1 can be used
 // save critical registers while interrupt is disabled
-1:
-	sw      sp, PTR_SP - FULL_INTERRUPT_FRAME_SIZE(k1)  // sp
-	addiu   sp, k1, - FULL_INTERRUPT_FRAME_SIZE - ARGS_FRAME_SIZE
+	sw      sp, PTR_SP - FULL_INTERRUPT_FRAME_SIZE(sp)  // sp
+	addiu   sp, sp, - FULL_INTERRUPT_FRAME_SIZE - ARGS_FRAME_SIZE
+
 	mfc0    k1, CP0_GUESTCTL0
 	sw      k0, PTR_CP0_CONTEXT + ARGS_FRAME_SIZE(sp)
 	sw      k1, PTR_CP0_GUESTCTL0 + ARGS_FRAME_SIZE(sp)
-	ins     k1, $0, CP0_GUESTCTL0_GM, 1
+	ins     k1, $0, CP0_GUESTCTL0_GM_SHIFT, 1
+
 	mfc0    k0, CP0_EPC
 	mtc0    k1, CP0_GUESTCTL0
 	sw      k0, PTR_CP0_EPC + ARGS_FRAME_SIZE(sp)
 	mfc0    k0, CP0_STATUS
-//        mfc0    k1, CP0_RIPL        // !!!!
-//        mtc0    k1, CP0_IPL         // !!!!
-	ehb
 	mfc0    k1, CP0_SRSCTL
 	sw      k1, PTR_CP0_SRSCTL + ARGS_FRAME_SIZE(sp)
+
 	lui     k1, %hi(CP0_STATUS_CU0)
 	addiu   k1, CP0_STATUS_MODE | CP0_STATUS_EXL | CP0_STATUS_IE
 	or      k1, k0
 	sw      k0, PTR_CP0_STATUS + ARGS_FRAME_SIZE(sp)
 	xori    k1, CP0_STATUS_MODE | CP0_STATUS_EXL | CP0_STATUS_IE
 	mtc0    k1, CP0_STATUS  // and disable IE, enable CU0, kernel mode, no EXL
-	ehb
-// interrupts may be  enabled now, then we put here IC IRQ read
+//        ehb
+//  save EIC interrupt number value here
+//        mfc0    k0, CP0_RIPL            // !!!!
+//        mtc0    k0, CP0_IPL             // !!!!
+
+// interrupts may be  enabled now, then we put here EIC IRQ read
 	.irp    reg, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, \
 		    17, 18, 19, 20, 21, 22, 23, 24, 25, 31
 	sw      $\reg, PTR_GPR + \reg * 4  + ARGS_FRAME_SIZE(sp)
@@ -271,7 +264,7 @@ IRQ_exit:
 	lw      $\reg, PTR_GPR + \reg * 4 + ARGS_FRAME_SIZE(sp)
 	.endr
 
-// disable interrupts
+// disable interrupts and guest enter
 	mfc0    t0, CP0_STATUS
 	ori     t0, CP0_STATUS_EXL
 	mtc0    t0, CP0_STATUS
@@ -289,69 +282,97 @@ IRQ_exit:
 	ehb
 // final CP0 status return
 	lw      k0, PTR_CP0_STATUS + ARGS_FRAME_SIZE(sp)
-	sll     k1, k0, 3
-	bltz    k1, 10f
-	 ori     k0, CP0_STATUS_EXL
-	// user thread, restore the rest
-	lw      fp, PTR_FP + ARGS_FRAME_SIZE(sp)              // fp = $30
-	lw      gp, PTR_GP + ARGS_FRAME_SIZE(sp)              // gp = $28
-10:
+	ori     k0, CP0_STATUS_EXL
 	lw      sp, PTR_SP + ARGS_FRAME_SIZE(sp)              // sp = $29
 	mtc0    k0, CP0_STATUS
 	ehb
 	eret
 
-IRQ_wait_entry:         // k1 - GuestCtl0
+IRQ_nonexc_entry:
 			// k0 - Context
-			// FP, SP, GP are expected to be OK
-			// temporary registers are free
-			// RA is saved BY "wait" function
+			// k1 - Status
+			// if !KSU, then FP, GP are expected to be OK
+	ext     k1, k1, CP0_STATUS_KSU_SHIFT, CP0_STATUS_KSU_LEN
+	beqz    k1, 10f // kernel mode
+	 move   k1, fp
+//  Non-root.kernel mode, restore basics
+	mfc0    k1, CP0_KSCR0                   // FP
+	sw      fp, PTR_FP(k1)
+	sw      gp, PTR_GP(k1)
+	la      gp, _gp
+10:
+	sw      sp, PTR_SP(k1)
+	move    fp, k1
+	lw      sp, %gp_rel(irq_sp)(gp)          // WAIT or VMx mode, so - stack is idle
 	sw      k0, PTR_CP0_CONTEXT(fp)
-	sw      sp, PTR_SP(fp)
 	addiu   sp, - ARGS_FRAME_SIZE
+	mfc0    k1, CP0_EPC
+	mtc0    $0, CP0_CONTEXT     // clear IDLE flag and switch to root-kernel
+	sw      k1, PTR_CP0_EPC(fp)
 
 // save critical registers while interrupt disabled
-	move    t4, k1          // CP0_GUESTCTL0
-	mfc0    t5, CP0_STATUS
+	mfc0    k0, CP0_GUESTCTL0
+	sw      k0, PTR_CP0_GUESTCTL0(fp)
+	ins     k0, $0, CP0_GUESTCTL0_GM_SHIFT, 1
+	mtc0    k0, CP0_GUESTCTL0   // clear guest flag
+
+	lui     k0, %hi(CP0_STATUS_CU0)
+	mfc0    k1, CP0_STATUS
+	addiu   k0, CP0_STATUS_MODE | CP0_STATUS_EXL | CP0_STATUS_IE
+	or      k0, k1
+	sw      k1, PTR_CP0_STATUS(fp)
+	xori    k0, CP0_STATUS_MODE | CP0_STATUS_EXL | CP0_STATUS_IE
+	mfc0    k1, CP0_SRSCTL
+	mtc0    k0, CP0_STATUS          // disable IE, enable CU0, kernel mode, no EXL
+//        ehb
+//  save EIC interrupt number value here
 //        mfc0    k0, CP0_RIPL            // !!!!
 //        mtc0    k0, CP0_IPL             // !!!!
+	sw      k1, PTR_CP0_SRSCTL(fp)
+	ext     k1, k1, CP0_SRSCTL_PSS_SHIFT, CP0_SRSCTL_PSS_LEN
+	bnez    k1, 10f
+	 di                             // disable for now...
 	ehb
-	ins     k1, $0, CP0_GUESTCTL0_GM, 1
-	mtc0    k1, CP0_GUESTCTL0   // clear guest flag
-	lui     k1, %hi(CP0_STATUS_CU0)
-	addiu   k1, CP0_STATUS_MODE | CP0_STATUS_EXL | CP0_STATUS_IE
-	mfc0    t1, CP0_SRSCTL
-	or      k1, t5
-	xori    k1, CP0_STATUS_MODE | CP0_STATUS_EXL | CP0_STATUS_IE
-	mfc0    t0, CP0_EPC
-	mtc0    k1, CP0_STATUS  // and disable IE, enable CU0, kernel mode, no EXL
+// interrupts may be enabled now, then we put EIC IRQ # read as 'critical' reg
+	.irp    reg, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, \
+		    17, 18, 19, 20, 21, 22, 23, 24, 25, 31
+	sw      $\reg, PTR_GPR + \reg * 4 (fp)
+	.endr
+10:
 	ehb
-// interrupts may be enabled now, then we put IC IRQ read
-
 	mflo    t2
 	mfhi    t3
-	sw      t0, PTR_CP0_EPC(fp)
-	sw      t1, PTR_CP0_SRSCTL(fp)
-	sw      t4, PTR_CP0_GUESTCTL0(fp)
-	sw      t5, PTR_CP0_STATUS(fp)
 	sw      t2, PTR_LO(fp)
 	sw      t3, PTR_HI(fp)
+
 	jal     do_IRQ
 	 addiu  a0, fp, 0
-.type IRQ_wait_exit, @function
-	.globl  IRQ_wait_exit
-IRQ_wait_exit:
+
+.type IRQ_nonexc_exit, @function
+	.globl  IRQ_nonexc_exit
+IRQ_nonexc_exit:
 
 	lw      t0, PTR_HI(fp)
 	lw      t1, PTR_LO(fp)
 	mthi    t0
-	mtlo    t1
+	lw      t0, PTR_CP0_SRSCTL(fp)
+	ext     t0, t0, CP0_SRSCTL_PSS_SHIFT, CP0_SRSCTL_PSS_LEN
+	bnez    t0, 10f
+	 mtlo    t1
+	.irp    reg, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, \
+		    17, 18, 19, 20, 21, 22, 23, 24, 25, 31
+	lw      $\reg, PTR_GPR + \reg * 4(fp)
+	.endr
+10:
 // disable interrupts
-	mfc0    t0, CP0_STATUS
-	ori     t0, CP0_STATUS_EXL
-	mtc0    t0, CP0_STATUS
+	di
 	ehb
-// interrupts are disabled now
+// interrupts are disabled now, disable guest exit
+	mfc0    k0, CP0_STATUS
+	ori     k0, CP0_STATUS_EXL
+	mtc0    k0, CP0_STATUS
+	ehb
+// restore the CP0
 	lw      k1, PTR_CP0_SRSCTL(fp)
 	lw      k0, PTR_CP0_EPC(fp)
 	mtc0    k1, CP0_SRSCTL
@@ -362,8 +383,15 @@ IRQ_wait_exit:
 	mtc0    k0, CP0_CONTEXT
 	ehb
 // final CP0 status return
+	mtc0    fp, CP0_KSCR0                   // FP
 	lw      k0, PTR_CP0_STATUS(fp)
-	lw      sp, PTR_SP(fp)
+	ext     k1, k0, CP0_STATUS_KSU_SHIFT, CP0_STATUS_KSU_LEN
+	beqz    k1, 10f
+	 lw      sp, PTR_SP(fp)
+	// non-kernel root context, restore GP, FP
+	lw      gp, PTR_GP(fp)
+	lw      fp, PTR_FP(fp)
+10:
 	ori     k0, CP0_STATUS_EXL
 	mtc0    k0, CP0_STATUS
 	ehb
@@ -372,26 +400,15 @@ IRQ_wait_exit:
 // ========================================
 
 EXC_entry_continue:
-// Long way: non-Guest, thread mode (kernel or user)
-	mfc0    k1, CP0_STATUS
-	sll     k1, 3               // Status.CU0
-	bltz    k1, 1f
-	 move   k1, sp              // kernel thread, keep SP
-
-	mfc0    k1, CP0_KSCR0       // user thread, restore SP
-	sw      gp, PTR_GP - FULL_INTERRUPT_FRAME_SIZE(k1)  // gp
-	la      gp, _gp
-	sw      fp, PTR_FP - FULL_INTERRUPT_FRAME_SIZE(k1)  // fp
-	ori     fp, sp, STACK_SIZE_MASK
-	xori    fp, fp, STACK_SIZE_MASK
-
+// Exception on top of IRQ or exception on top of exception or main kernel thread
+// FP, GP, SP are valid. K0/K1 can be used
 // save critical registers while interrupt is disabled
-1:
-	sw      sp, PTR_SP - FULL_INTERRUPT_FRAME_SIZE(k1)  // sp
-	addiu   sp, k1, - FULL_INTERRUPT_FRAME_SIZE - ARGS_FRAME_SIZE
+	sw      sp, PTR_SP - FULL_INTERRUPT_FRAME_SIZE(sp)  // sp
+	addiu   sp, sp, - FULL_INTERRUPT_FRAME_SIZE - ARGS_FRAME_SIZE
 	mfc0    k1, CP0_GUESTCTL0
+	sw      k0, PTR_CP0_CONTEXT + ARGS_FRAME_SIZE(sp)
 	sw      k1, PTR_CP0_GUESTCTL0 + ARGS_FRAME_SIZE(sp)
-	ins     k1, $0, CP0_GUESTCTL0_GM, 1
+	ins     k1, $0, CP0_GUESTCTL0_GM_SHIFT, 1
 	mfc0    k0, CP0_EPC
 	mtc0    k1, CP0_GUESTCTL0
 	sw      k0, PTR_CP0_EPC + ARGS_FRAME_SIZE(sp)
@@ -409,10 +426,8 @@ EXC_entry_continue:
 	sw      k0, PTR_CP0_CAUSE + ARGS_FRAME_SIZE(sp)
 	mfc0    k1, CP0_SRSCTL
 	sw      k1, PTR_CP0_SRSCTL + ARGS_FRAME_SIZE(sp)
+
 	mfc0    k0, CP0_STATUS
-//        mfc0    k1, CP0_RIPL            // !!!!
-//        mtc0    k1, CP0_IPL             // !!!!
-	ehb
 	lui     k1, %hi(CP0_STATUS_CU0)
 	addiu   k1, CP0_STATUS_MODE | CP0_STATUS_EXL | CP0_STATUS_IE
 	or      k1, k0
@@ -420,7 +435,7 @@ EXC_entry_continue:
 	sw      k0, PTR_CP0_STATUS + ARGS_FRAME_SIZE(sp)
 	mtc0    k1, CP0_STATUS  // and disable IE, enable CU0, kernel mode, no EXL
 	ehb
-// interrupts may be enabled now, then we put IC IRQ read
+// interrupts may be enabled now
 	.irp    reg, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, \
 		    17, 18, 19, 20, 21, 22, 23, 24, 25, 31
 	sw      $\reg, PTR_GPR + \reg * 4 + ARGS_FRAME_SIZE (sp)
@@ -435,66 +450,81 @@ EXC_entry_continue:
 	j       do_EXC
 	 addiu  ra, %lo(IRQ_exit)
 
-EXC_wait_g_entry:
-	// separation is for future G.LLbit clearance
-	srl     k0, 23  // separate VMID
-	beqz    k0, _clear_g_ll_cont    // VM0 + GM => LLbit handler
-	 mfc0   k0, CP0_CONTEXT
-EXC_wait_entry:         // k1 - GuestCtl0
+EXC_nonexc_entry:
+			// k1 - GuestCtl0
 			// k0 - Context
-			// FP, SP, GP are expected to be OK
-			// temporary registers are free
-			// RA is saved BY "wait" function
-	sw      k0, PTR_CP0_CONTEXT(fp)
-	mtc0    $0, CP0_CONTEXT     // clear "Idle" flag, switch to root for next
+			// if CU0, then FP, GP are expected to be OK
 
-	sw      sp, PTR_SP(fp)
+	mfc0    k1, CP0_STATUS
+	ext     k1, k1, CP0_STATUS_KSU_SHIFT, CP0_STATUS_KSU_LEN
+	beqz    k1, 10f // kernel mode
+	 move   k1, fp
+//  Non-root.kernel mode, restore basics
+	mfc0    k1, CP0_KSCR0                   // FP
+	sw      fp, PTR_FP(k1)
+	sw      gp, PTR_GP(k1)
+	la      gp, _gp
+10:
+	sw      sp, PTR_SP(k1)
+	move    fp, k1
+	lw      sp, %gp_rel(irq_sp)(gp)          // WAIT or VMx mode, so - stack is idle
+	sw      k0, PTR_CP0_CONTEXT(fp)
+	ins     k0, $0, CP0_CONTEXT_WAITFLAG_SHIFT, 1   // clear "Idle" flag
 	addiu   sp, - ARGS_FRAME_SIZE
+	mtc0    k0, CP0_CONTEXT
+	mfc0    k0, CP0_EPC
+	mfc0    k1, CP0_GUESTCTL0
+	sw      k0, PTR_CP0_EPC(fp)
+	sw      k1, PTR_CP0_GUESTCTL0(fp)
+	ins     k1, $0, CP0_GUESTCTL0_GM_SHIFT, 1
+	mtc0    k1, CP0_GUESTCTL0   // clear G flag
 
 // save critical registers while interrupt disabled
-	move    t4, k1          // CP0_GUESTCTL0
-	ins     k1, $0, CP0_GUESTCTL0_GM, 1
-	mtc0    k1, CP0_GUESTCTL0
-	mfc0    t2, CP0_CAUSE
-	mfc0    t5, CP0_BADVADDR
-	mfc0    t6, CP0_BADINST
-	mfc0    t7, CP0_BADINSTP
-	mfc0    t8, CP0_NESTED_EPC
-	mfc0    t9, CP0_NESTED_EXC
-	mfc0    t3, CP0_STATUS
-//        mfc0    k0, CP0_RIPL            // !!!!
-//        mtc0    k0, CP0_IPL             // !!!!
-	ehb
-	lui     k1, %hi(CP0_STATUS_CU0)
-	addiu   k1, CP0_STATUS_MODE | CP0_STATUS_EXL | CP0_STATUS_IE
-//        mfc0    t1, CP0_SRSCTL
-	or      k1, t3
-	xori    k1, CP0_STATUS_MODE | CP0_STATUS_EXL | CP0_STATUS_IE
-	mfc0    t0, CP0_EPC
-	mfc0    t1, CP0_SRSCTL
-	mtc0    k1, CP0_STATUS  // and disable IE, enable CU0, kernel mode, no EXL
-	ehb
-// interrupts may be enabled now, then we put here IC IRQ read
 
-	sw      t2, PTR_CP0_CAUSE(fp)
-	sw      t0, PTR_CP0_EPC(fp)
-	sw      t1, PTR_CP0_SRSCTL(fp)
-	sw      t4, PTR_CP0_GUESTCTL0(fp)
-	sw      t3, PTR_CP0_STATUS(fp)
-	sw      t5, PTR_CP0_BADVADDR(fp)
-	sw      t6, PTR_CP0_BADINST(fp)
-	sw      t7, PTR_CP0_BADINSTP(fp)
-	sw      t8, PTR_CP0_NESTED_EPC(fp)
-	sw      t9, PTR_CP0_NESTED_EXC(fp)
+	mfc0    k1, CP0_CAUSE
+	mfc0    k0, CP0_BADVADDR
+	sw      k1, PTR_CP0_CAUSE(fp)
+	sw      k0, PTR_CP0_BADVADDR(fp)
+	mfc0    k1, CP0_BADINST
+	mfc0    k0, CP0_BADINSTP
+	sw      k1, PTR_CP0_BADINST(fp)
+	sw      k0, PTR_CP0_BADINSTP(fp)
+	mfc0    k1, CP0_NESTED_EPC
+	mfc0    k0, CP0_NESTED_EXC
+	sw      k1, PTR_CP0_NESTED_EPC(fp)
+	sw      k0, PTR_CP0_NESTED_EXC(fp)
+
+	lui     k0, %hi(CP0_STATUS_CU0)
+	mfc0    k1, CP0_STATUS
+	addiu   k0, CP0_STATUS_MODE | CP0_STATUS_EXL | CP0_STATUS_IE
+	or      k0, k1
+	sw      k1, PTR_CP0_STATUS(fp)
+	xori    k0, CP0_STATUS_MODE | CP0_STATUS_EXL | CP0_STATUS_IE
+	mfc0    k1, CP0_SRSCTL
+	mtc0    k0, CP0_STATUS  // and disable IE, enable CU0, kernel mode, no EXL
+
+	sw      k1, PTR_CP0_SRSCTL(fp)
+	ext     k1, k1, CP0_SRSCTL_PSS_SHIFT, CP0_SRSCTL_PSS_LEN
+	bnez    k1, 10f
+	 di                             // disable for now...
+	ehb
+// interrupts may be enabled now, then we put EIC IRQ # read as 'critical' reg
+	.irp    reg, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, \
+		    17, 18, 19, 20, 21, 22, 23, 24, 25, 31
+	sw      $\reg, PTR_GPR + \reg * 4 (fp)
+	.endr
+10:
+	ehb
+
 	mflo    t2
 	mfhi    t3
 	sw      t2, PTR_LO(fp)
 	sw      t3, PTR_HI(fp)
 
 	addiu   a0, fp, 0
-	lui     ra, %hi(IRQ_wait_exit)
+	lui     ra, %hi(IRQ_nonexc_exit)
 	j       do_EXC
-	 addiu  ra, %lo(IRQ_wait_exit)
+	 addiu  ra, %lo(IRQ_nonexc_exit)
 
 	.set    pop
 
@@ -661,7 +691,7 @@ _clear_g_ll:
 	li      k1, CP0_GUESTCTL0EXT_INIT
 	mtc0    k1, CP0_GUESTCTL0EXT    // FCD=1 to prevent tracking
 
-	li  k0, CP0_GUESTCTL0_INIT | (1 << CP0_GUESTCTL0_GM)
+	li  k0, CP0_GUESTCTL0_INIT | (1 << CP0_GUESTCTL0_GM_SHIFT)
 	mtc0    k0, CP0_GUESTCTL0
 
 	mtc0    $0, CP0_CONTEXT
@@ -676,10 +706,10 @@ eret_start:
 	eret    // ... double use: root exit and VMID_ERET return to next inst
 eret_cont:
 	hypcall // VMID_ERET only: trigger exception to return into root
-	// after EXC_wait_ jumps here - return
+	// after EXC_nonexc_ jumps here - return
 _clear_g_ll_cont:
 	// mfc0    k1, CP0_GUESTCTL0    -- it is already here
-	ins     k1, $0, CP0_GUESTCTL0_GM, 1
+	ins     k1, $0, CP0_GUESTCTL0_GM_SHIFT, 1
 	mtc0    k1, CP0_GUESTCTL0   // clear guest flag
 	mfc0    k0, CP0_STATUS      // get status with CU0/kernel mode/flags/masks
 	ori     k0, CP0_STATUS_IE | CP0_STATUS_EXL
@@ -711,11 +741,8 @@ wait:
 	ehb
 	lw      a0, reschedule_flag
 	bnez    a0, 2f
-	 nop
+	 sw     sp, %gp_rel(irq_sp)(gp)
 	syscall 0xf0000
-	lw      a0, reschedule_flag
-	bnez    a0, 2f
-	 nop
 	wait
 	ei
 	b       1b
@@ -744,7 +771,7 @@ __start:
 .set push
 .set noreorder
 	mfc0  $4, CP0_STATUS
-	li    $8, 0x14000000
+	li    $8, 0x04000000
 	mtc0  $8, CP0_STATUS
 	mfc0  $5, CP0_CAUSE
 	mtc0  $0, CP0_CAUSE
@@ -812,12 +839,21 @@ __start:
 	mtc0  $0, $13, 5            // clear Nested EXC
 	ehb
 	la    gp, _gp
-	la    sp, STACKTOP - (6 * 4)
-	ori   fp, sp, STACK_SIZE_MASK
-	xori  fp, fp, STACK_SIZE_MASK
-	sw    fp, vm0_thread
+	la    sp, vzstack
+	lw    $11, vzstack_size_total
+	add   sp, $11
+	addiu sp, - 6 * 4
+	addiu fp, sp,  6 * 4 - VZSTACKSIZE
+	sw    fp, vm0_thread        // save VM0 frame as a base
+	mtc0  fp, CP0_KSCR0
 
 	la    $25, __main
 	jr    $25
 	 nop
 .set pop
+
+.type loop, @function
+.globl loop
+loop:
+1:  b   1b
+     nop

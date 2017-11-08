@@ -25,6 +25,9 @@
 
 import os
 
+import build_vars
+from build_vars import *
+
 COMMENT_CHAR = '#'
 OPTION_CHAR =  '='
 KB = 1024
@@ -42,7 +45,7 @@ eretpage = None
 vzcode = None
 vzentry = None
 vzdata = None
-vzstacktop = None
+vzstacksize = None
 
 def parse_regblock(f, flagdefault, type):
     regblock = []
@@ -326,6 +329,19 @@ def parse_vm(f, vm, stage):
 		    vm["setup"].extend(setup)
 		else:
 		    vm["setup"] = setup
+	    elif key == "sp":
+		address = None
+		sp = None
+		try:
+		    size, address,  sp = value.split()
+		    sp = int(sp,0)
+		except:
+		    try:
+			size, address = value.split()
+			sp = str(int(address,0) + int(size,0))
+		    except:
+			size = value
+		vm["sp"] = (int(size,0), int(address,0), sp)
 	    else:
 		vm[key] = value
 	else:
@@ -367,15 +383,30 @@ def parse_config_file(filename, stage):
 	line = line.strip();
 	if line == '':
 	    continue
-	if line == ".vm":
+	if (line == ".vm") or (line == '.thread'):
 	    vm = {}
 	    vm = parse_vm(f, vm, stage)
 	    try:
-		vmid = vm['id']
+		vmids = vm["id"]
 	    except:
 		print "7 Configuration file error, vm has no id",
 		exit(1)
-	    configuration[int(vmid)] = vm
+	    vmid = int(vmids)
+	    if line == ".thread":
+		vm["type"] = "thread"
+		if "srs" not in vm:
+		    vm["srs"] = '0'
+		if "mode" not in vm:
+		    vm["mode"] = 'kernel'
+	    else:
+		vm["type"] = "vm"
+		# SRS is mandatory for guest now
+		vm["srs"] = vmids
+		if build_vars.max_num_guest < vmid:
+		    build_vars.max_num_guest = vmid
+	    if build_vars.max_num_thread < vmid:
+		build_vars.max_num_thread = vmid
+	    configuration[vmid] = vm
 	else:
 	    print "8 Configuration file parse error, line ", lline
 	    exit(1)
@@ -383,7 +414,7 @@ def parse_config_file(filename, stage):
     return vm
 
 def parse_board(arg,platform):
-    global romaddress, romend, ramaddress, ramend, eretpage, vzcode, vzentry, vzdata, vzstacktop
+    global romaddress, romend, ramaddress, ramend, eretpage, vzcode, vzentry, vzdata, vzstacksize
     f = open(arg)
     for line in f:
 	# First, remove comments:
@@ -411,8 +442,8 @@ def parse_board(arg,platform):
 		vzentry = int(value,0)
 	    elif key == "vzdata":
 		vzdata = int(value,0)
-	    elif key == "vzstacktop":
-		vzstacktop = int(value,0)
+	    elif key == "vzstacksize":
+		build_vars.vzstacksize = int(value,0)
 	    else:
 		platform.parse_board_file_key(f, key, value)
 	else:
@@ -426,7 +457,7 @@ def round_region(size, align):
     return (int(size,0) + (4*KB - 1)) & ~(4*KB - 1)
 
 def allocate_region(paddr, size, flags, align, ramflag):
-    global romaddress, romend, ramaddress, ramend, vzcode, vzentry, vzdata, vzstacktop
+    global romaddress, romend, ramaddress, ramend, vzcode, vzentry, vzdata, vzstacksize
     if ramflag == 0:
 	newpaddr = romaddress
 	newpaddr = (newpaddr + (int(align,0) - 1)) & ~(int(align,0) - 1)
@@ -441,5 +472,6 @@ def allocate_region(paddr, size, flags, align, ramflag):
 	if ramaddress >= ramend:
 	    print "RAM space is exhausted with ",paddr," region"
 	    exit(1)
+    print "ALLOCATE_REGION: ",paddr," ",newpaddr
     return (hex(paddr), hex(size), flags, hex(newpaddr)), newpaddr - paddr
 

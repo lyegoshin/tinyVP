@@ -280,8 +280,8 @@ CP1_REGISTER(fcr31, "$31")
 #define inst_RDHWR(inst)        (((inst) & 0xffe0063f) == 0x7c00003b)
 #define inst_SYSCALL_F0000(in)  ((in) == 0x03c0000c)
 
-#define vz_mode(exfr)       \
-	(exfr->cp0_guestctl0 & (1 << CP0_GUESTCTL0_GM))
+#define srs(exfr)       \
+	((exfr->cp0_srsctl & CP0_SRSCTL_PSS_MASK) >> CP0_SRSCTL_PSS_SHIFT)
 
 struct cp0_status {
 	BITFIELD_FIELD(unsigned int CU3 : 1,
@@ -317,6 +317,20 @@ struct cp0_status {
 	BITFIELD_FIELD(unsigned int IE  : 1,
 	;)))) )))) )))) )))) )))) )))) )
 };
+
+static inline unsigned int in_exc_stack(unsigned int s)
+{
+	struct cp0_status status = *(struct cp0_status*)&s;
+
+	return status.CU0;
+}
+
+static inline unsigned int is_kernel(unsigned int s)
+{
+	struct cp0_status status = *(struct cp0_status*)&s;
+
+	return !status.KSU;
+}
 
 static inline unsigned int get_status__ipl(unsigned int s)
 {
@@ -407,16 +421,16 @@ static inline unsigned int get__ipl(unsigned int v)
 
 struct cp0_context {
 	BITFIELD_FIELD(unsigned int waitflag    : 1,
-	BITFIELD_FIELD(unsigned int vm          : 8,
+	BITFIELD_FIELD(unsigned int thread      : 8,
 	BITFIELD_FIELD(unsigned int BADVPN2     : 23,
 	;)))
 };
 
-static inline unsigned int get_exfr_context__vm(struct exception_frame *exfr)
+static inline unsigned int get_exfr_context__thread(struct exception_frame *exfr)
 {
 	struct cp0_context context = *(struct cp0_context*)&(exfr->cp0_context);
 
-	return context.vm;
+	return context.thread;
 }
 
 static inline unsigned int get_exfr_context__waitflag(struct exception_frame *exfr)
@@ -424,11 +438,6 @@ static inline unsigned int get_exfr_context__waitflag(struct exception_frame *ex
 	struct cp0_context context = *(struct cp0_context*)&(exfr->cp0_context);
 
 	return context.waitflag;
-}
-
-static inline unsigned int get_context__shortprolog(unsigned int cp0_context)
-{
-	return (cp0_context >> 23);
 }
 
 struct cp0_guestctl0 {
@@ -547,9 +556,9 @@ static inline void restore_dsp_regs(void)
 		: "$1", "$8", "$30", "$31");
 }
 
-static inline void save_fpu_regs(unsigned int vmid)
+static inline void save_fpu_regs(unsigned int thread)
 {
-	register struct thread * v0 __asm__("$2") = get_vm_fp(vmid);
+	register struct thread * v0 __asm__("$2") = get_thread_fp(thread);
 
 	__asm__ __volatile__(
 		"jal    _save_fpu_regs"
@@ -558,9 +567,9 @@ static inline void save_fpu_regs(unsigned int vmid)
 		: "$1", "$8", "$30", "$31", "memory");
 }
 
-static inline void save_dsp_regs(unsigned int vmid)
+static inline void save_dsp_regs(unsigned int thread)
 {
-	register struct thread * v0 __asm__("$2") = get_vm_fp(vmid);
+	register struct thread * v0 __asm__("$2") = get_thread_fp(thread);
 
 	__asm__ __volatile__(
 		"jal    _save_dsp_regs"

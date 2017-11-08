@@ -21,6 +21,7 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include    "tinyVP.h"
 #include    "mips.h"
 #include    "uart.h"
 #include    "tlb.h"
@@ -34,7 +35,7 @@
 
 unsigned int console_reg_sta[MAX_NUM_GUEST + 1];
 unsigned int console_reg_mode[MAX_NUM_GUEST + 1];
-unsigned char console_rx_vmid;
+unsigned int console_rx_vmid;
 unsigned char console_esc;
 unsigned char console_buffer[MAX_NUM_GUEST + 1][MAX_INPUT_BUFFER_SIZE];
 unsigned char console_buffer_start[MAX_NUM_GUEST + 1];
@@ -79,7 +80,7 @@ unsigned int  console(struct exception_frame *exfr,
 		     int flag, unsigned long value)
 {
 	unsigned long offset;
-	unsigned int vmid = current->vmid;
+	unsigned int vmid = current->tid;
 	unsigned int i;
 
 	offset = ((unsigned long *)addr) - ((unsigned long *)console_paddr);
@@ -118,8 +119,8 @@ unsigned int  console(struct exception_frame *exfr,
 		}
 		if ((console_reg_sta[vmid] & UART_STA_TXENA) &&
 		    (console_reg_mode[vmid] & UART_MODE_ENABLE)) {
-			insert_sw_irq(vmid, console_irq_tx);
-			enforce_irq(exfr, vmid, console_irq_tx);
+			insert_sw_irq(current->tid, console_irq_tx);
+			enforce_irq(exfr, current->tid, console_irq_tx);
 		}
 		return 1;
 	};
@@ -175,7 +176,7 @@ void    console_rx(struct exception_frame *exfr, unsigned int value)
 	if (console_esc) {
 		console_esc = 0;
 		vmid = value - '0';
-		if ((vmid >= 0) || (vmid <= 7)) {
+		if ((vmid >= 0) || (vmid <= MAX_NUM_GUEST)) {
 			if (vm_list[vmid] || !vmid)
 				console_rx_vmid = vmid;
 			return;
@@ -190,6 +191,8 @@ void    console_rx(struct exception_frame *exfr, unsigned int value)
 			}
 		}
 	}
+
+
 	console_esc = 0;
 	console_input_char(value);
 	console_reg_sta[console_rx_vmid] |= UART_STA_URXDA;
@@ -202,11 +205,11 @@ void    console_rx(struct exception_frame *exfr, unsigned int value)
 		    (value == '\a') || (value == '\b'))
 			printf("%c", value);
 
-		next = get_vm_fp(0);
+		next = get_thread_fp(0);
 		reschedule_flag = 1;
 		next->thread_flags |= THREAD_FLAGS_RUNNING;
-		if (current->vmid)
-			request_switch_to_vm(exfr, 0);
+		if (current->tid)
+			request_switch_to_thread(exfr, 0);
 		return;
 	}
 	/* enact and start IRQ in vm ... */
@@ -219,11 +222,10 @@ emulator_ic_write   console_ic;
 unsigned int        console_ic(struct exception_frame *exfr, unsigned int irq)
 {
 	/* start IRQ in VM ... */
-	if ((console_reg_sta[current->vmid] & UART_STA_TXENA) &&
-	    (console_reg_mode[current->vmid] & UART_MODE_ENABLE)) {
-		insert_sw_irq(current->vmid, console_irq_tx);
-		enforce_irq(exfr, current->vmid, console_irq_tx);
-	}
-	if (irq == console_irq_rx)
-		enforce_irq(exfr, current->vmid, console_irq_rx);
+	if ((console_reg_sta[current->gid] & UART_STA_TXENA) &&
+	    (console_reg_mode[current->gid] & UART_MODE_ENABLE)) {
+		insert_sw_irq(current->tid, console_irq_tx);
+		enforce_irq(exfr, current->tid, console_irq_tx);
+	} else if (irq == console_irq_rx)
+		enforce_irq(exfr, current->tid, console_irq_rx);
 }
