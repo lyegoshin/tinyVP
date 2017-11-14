@@ -765,7 +765,7 @@ wait:
 // ==============================================
 
 .type __start, @function
-.org    BOOTOFFSET + 0x1000
+// .org    BOOTOFFSET + 0x1000
 .globl __start
 __start:
 .set push
