@@ -21,6 +21,12 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+/*
+ *      System log/printout module.
+ *
+ *      It log into buffer and call UART to flush it offline
+ */
+
 #include <limits.h>
 #include <printf.h>
 #include <stdarg.h>

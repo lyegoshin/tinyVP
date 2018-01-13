@@ -21,6 +21,15 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+/*
+ *      PIC32MZEF IC (Interrupt Controler) support and emulation
+ *
+ *      Support of both - a real (physical) IC and guest's virtual view.
+ *      Guest has no a direct access to IC registers.
+ *      Each guest thread has a functional copy of IC registers in vmic
+ *      and guest access is emulated
+ */
+
 #include    "mips.h"
 #include    "irq.h"
 #include    "ic.h"
@@ -30,16 +39,27 @@
 #include    "mipsasm.h"
 #include    <asm/inst.h>
 
+//  Read a current thread (actually guest) virtual interrupt controller
+//  register at offset 'off'.
+//  Only legitimate offsets are used - each 16 bytes
+//
 inline unsigned int read_vmic(unsigned long off)
 {
 	return current->vmdev.vmic.w4[off/16];
 }
 
+//  Read a thread (actually guest) virtual interrupt controller
+//  register at offset 'off'.
+//  Only legitimate offsets are used - each 16 bytes
+//
 inline unsigned int read_thread_vmic(struct thread *thread, unsigned long off)
 {
 	return thread->vmdev.vmic.w4[off/16];
 }
 
+//  Get virtual IRQ IPL value from virtual interrupt controller
+//  IC register 'IPC' is used for appropriate IRQ
+//
 unsigned int get_vmic_ipl(unsigned int irq)
 {
 	unsigned int word;
@@ -54,36 +74,65 @@ unsigned int get_vmic_ipl(unsigned int irq)
 	return ipc;
 }
 
+//  Write to a current thread (actually guest) virtual interrupt controller
+//  register at offset 'off'.
+//  Only legitimate offsets are used - each 16 bytes
+//
 inline void write_vmic(unsigned long off, unsigned int val)
 {
 	current->vmdev.vmic.w4[off/16] = val;
 }
 
+//  Write to a thread (actually guest) virtual interrupt controller
+//  register at offset 'off'.
+//  Only legitimate offsets are used - each 16 bytes
+//
 inline void write_thread_vmic(struct thread *thread, unsigned long off, unsigned int val)
 {
 	thread->vmdev.vmic.w4[off/16] = val;
 }
 
+//  Read IRQ 'offset' value from a current thread (actually guest) virtual
+//  interrupt controller via IC register offset.
+//  IC register 'OFF' is used to keep IRQ offset.
+//  Special function is due to non-standard offset rules for this register in IC
+//
 inline unsigned int read_vmic_off(unsigned long off)
 {
 	return current->vmdev.vmic.off[(off - IC_OFF_BASE_OFFSET)/4];
 }
 
+//  Read IRQ 'offset' value from a some thread (actually guest) virtual
+//  interrupt controller via IC register offset.
+//  IC register 'OFF' is used to keep IRQ offset.
+//  Special function is due to non-standard offset rules for this register in IC
+//
 inline unsigned int read_thread_vmic_off(struct thread *thread, unsigned long off)
 {
 	return thread->vmdev.vmic.off[(off - IC_OFF_BASE_OFFSET)/4];
 }
 
+//  Get IRQ 'offset' value from a some thread (actually guest) virtual IC.
+//  IC register 'OFF' is used to keep IRQ offset.
+//  Register is calculated via IRQ number.
+//
 inline unsigned int get_thread_irq2off(struct thread *thread, unsigned int irq)
 {
 	return  read_thread_vmic_off(thread, IC_OFF_BASE_OFFSET + (irq * 4));
 }
 
+//  Write IRQ 'offset' value to a current thread (actually guest) virtual IC
+//  via IC register offset.
+//  IC register 'OFF' is used to keep IRQ offset.
+//  Special function is due to non-standard offset rules for this register in IC
+//
 inline void write_vmic_off(unsigned long off, unsigned int val)
 {
 	current->vmdev.vmic.off[(off - IC_OFF_BASE_OFFSET)/4] = val;
 }
 
+//  Init virtual IC by zeros
+//
 void    init_vmic(struct thread *thread)
 {
 	int i;
@@ -94,6 +143,8 @@ void    init_vmic(struct thread *thread)
 		thread->vmdev.vmic.off[i] = 0;
 }
 
+//  Get thread value of IPC register for IRQ from thread virtual IC
+//
 inline unsigned int get_thread_vmic_ipc(struct thread *thread, unsigned int irq)
 {
 	unsigned long offset;
@@ -106,31 +157,43 @@ inline unsigned int get_thread_vmic_ipc(struct thread *thread, unsigned int irq)
 	return (word >> shift) & 0xff;
 }
 
+//  Set virtual IC timer IRQ to 'ON' for thread
+//
 inline void set_thread_timer_irq(struct thread *thread)
 {
 	thread->vmdev.vmic.w4[((IC_CP0_TIMER_WORD_NUMBER*16) + IC_IFS_BASE_OFFSET)/16] |= IC_CP0_TIMER_MASK;
 }
 
+//  Get thread virtual IC timer IRQ mask
+//
 inline unsigned int get_thread_timer_mask(struct thread *thread)
 {
 	return read_thread_vmic(thread, (IC_IEC_BASE_OFFSET + (IC_CP0_TIMER_WORD_NUMBER * 16))) & IC_CP0_TIMER_MASK;
 }
 
+//  Get thread virtual IC timer IPL
+//
 inline unsigned int get_thread_timer_ipl(struct thread *thread)
 {
 	return (get_thread_vmic_ipc(thread, IC_TIMER_IRQ) >> 2);
 }
 
+//  Clear a current thread virtual IC timer IRQ
+//
 void clear_timer_irq()
 {
 	current->vmdev.vmic.w4[((IC_CP0_TIMER_WORD_NUMBER*16) + IC_IFS_BASE_OFFSET)/16] &= ~IC_CP0_TIMER_MASK;
 }
 
+//  Read a current thread timer IRQ offset from register 'OFF' of virtual IC
+//
 inline unsigned int read_timer_voff(void)
 {
 	return read_vmic_off(IC_OFF_BASE_OFFSET + (IC_TIMER_IRQ * 4));
 }
 
+//  Mask a real IRQ in IC
+//
 void    irq_mask(unsigned irq)
 {
 	volatile unsigned int *iec;
@@ -140,7 +203,18 @@ void    irq_mask(unsigned irq)
 	*(iec + IC_CLR_WOFFSET) = iec_mask;
 }
 
-// IFS/IEC write, finish injection (1), restore rIEC (2) for next interrupt
+//  End IRQ in IC procedure
+//
+//  Guest writes to IFS or IEC, so some emulation is needed.
+//  0.  Determine which interrupts should be processed - which bits are changed
+//      Take into account IRQ ownership!
+//      Take into account virtual vs real IRQ!
+//      Take into account that one world write has 32 IRQs!
+//  1.  If an injected IRQ is masked - cancel an injection
+//  2.  If IFS bits are cleared and IRQ is not pure virtual - copy virtual IEC
+//      to real IEC bits, restoring real IEC for next interrupt. At interrupt
+//      injection the real IRQ was masked (IEC <= 0) to prevent a next IRQ.
+//
 void    ic_end_irq(struct exception_frame *exfr, unsigned long va,
 		   unsigned int mask, unsigned int emulator_flag,
 		   unsigned long value)
@@ -201,6 +275,8 @@ void    ic_end_irq(struct exception_frame *exfr, unsigned long va,
 	}
 }
 
+//  Unmask a real IRQ in IC (IEC <= 1)
+//
 void    irq_unmask(unsigned irq)
 {
 	volatile unsigned int *iec;
@@ -210,6 +286,8 @@ void    irq_unmask(unsigned irq)
 	*(iec + IC_SET_WOFFSET) = iec_mask;
 }
 
+//  Ack real IRQ in IC - clear IFS bit
+//
 void    irq_ack(unsigned irq)
 {
 	volatile unsigned int *ifs;
@@ -219,6 +297,8 @@ void    irq_ack(unsigned irq)
 	*(ifs + IC_CLR_WOFFSET) = ifs_mask;
 }
 
+//  Ack and mask  real IRQ in IC
+//
 void    irq_mask_and_ack(unsigned irq)
 {
 	volatile unsigned int *iec;
@@ -233,6 +313,8 @@ void    irq_mask_and_ack(unsigned irq)
 	*(ifs + IC_CLR_WOFFSET) = ifs_mask;
 }
 
+//  Set a real IRQ priority in IPC and unmask
+//
 void    irq_set_prio_and_unmask(unsigned int irq, unsigned int prio)
 {
 	volatile unsigned int *ipc;
@@ -245,7 +327,8 @@ void    irq_set_prio_and_unmask(unsigned int irq, unsigned int prio)
 	irq_unmask(irq);
 }
 
-// insert IRQ into IC. No attempt to inject it
+//  Insert IRQ into virtual IC of thread. No attempt to inject it
+//
 void    insert_sw_irq(unsigned int thread, unsigned int irq)
 {
 	struct thread *next  = get_thread_fp(thread);
@@ -261,7 +344,8 @@ void    insert_sw_irq(unsigned int thread, unsigned int irq)
 	write_thread_vmic(next, vaoff, value);
 }
 
-// try to force IRQ - verify masks&IPLs
+//  Try to force IRQ - verify masks&IPLs and insert it in virtual IC
+//
 void    enforce_irq(struct exception_frame *exfr, unsigned int thread, unsigned int irq)
 {
 	struct thread *next  = get_thread_fp(thread);
@@ -304,7 +388,8 @@ return;
 	insert_IRQ(exfr, thread, irq, value);
 }
 
-// execute a HW IRQ pass-through
+//  Execute a pass-through of a real IRQ down to guest
+//
 int execute_IRQ(struct exception_frame *exfr, unsigned int irq, unsigned int ipl)
 {
 	emulator_irq *irq_emulator;
@@ -327,6 +412,10 @@ int execute_IRQ(struct exception_frame *exfr, unsigned int irq, unsigned int ipl
 	return 0;
 }
 
+//  Main process from IRQ entry
+//
+//  Process system IRQs and look into guest assigned to execute it
+//
 void do_IRQ(struct exception_frame *exfr)
 {
 	unsigned int irq = (*IC_INTSTAT) & IC_INTSTAT_SIRQ_MASK;
@@ -376,6 +465,8 @@ uart_writeline(console_uart, str);
 	irq_mask(irq);
 }
 
+//  Init a real IRQ subsystem
+//
 void init_IRQ(void)
 {
 	int i;
@@ -419,6 +510,8 @@ sprintf(str, "init_IRQ: EBase=0x%08x\n", read_cp0_ebase());
 uart_writeline(console_uart, str);
 }
 
+//  Emulate 'read IC register' (IFS/IEC/IPC only)
+//  Read a real IC register and mix it with virtual IC
 unsigned long emulate_read_ic(struct exception_frame *exfr, unsigned long vaoff,
 			     unsigned long vareg)
 {
@@ -427,7 +520,7 @@ unsigned long emulate_read_ic(struct exception_frame *exfr, unsigned long vaoff,
 	unsigned int value;
 
 #if 0
-... removed because it seems IFS must be cleared for each IRQ
+... removed because it seems that IFS must be cleared for each IRQ
 	if ((current->injected_irq >= 0) && (vaoff < IC_IEC_BASE_OFFSET)) {
 		// IFS read, release a held IEC if matches, for interruptless G.
 		ifs = ic_ifs(current->injected_irq, &mask);
@@ -451,6 +544,12 @@ unsigned long emulate_read_ic(struct exception_frame *exfr, unsigned long vaoff,
 	return value;
 }
 
+//  Emulate 'write IC register' (IFS/IEC/IPC only)
+//
+//  1.  Detect WR/CLR/SET/INV offsets and change virtual IC
+//  2.  IFS/IEC: End of IRQ
+//  3.  Loop through 32 bits and call an assigned device emulator
+//
 unsigned long emulate_write_ic(struct exception_frame *exfr,
 			       unsigned long va, unsigned long vaoff,
 			       unsigned long gpr, unsigned int *mask)
@@ -527,7 +626,8 @@ unsigned long emulate_write_ic(struct exception_frame *exfr,
 	return ret;
 }
 
-// emulation entry from TLB exception handler
+//  Main emulation entry from TLB exception handler
+//
 int ic_emulator(struct exception_frame *exfr)
 {
 	unsigned long va, vaoff, vareg;
@@ -661,7 +761,8 @@ int ic_emulator(struct exception_frame *exfr)
 	return 1;
 }
 
-// select a highest IPL SW IRQ from word
+// select a highest virtial IRQ IPL from IFS word
+//
 unsigned int pickup_word_sw_irq(struct exception_frame *exfr,
 				unsigned int word, unsigned int irqoff,
 				unsigned int *tipl, unsigned int gipl)
@@ -693,7 +794,8 @@ unsigned int pickup_word_sw_irq(struct exception_frame *exfr,
 	return irq0;
 }
 
-// select a highest IPL SW IRQ from whole vmic array
+// select a highest IRQ by IPL from whole vmic array
+//
 unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 			   unsigned int *voff, unsigned int gipl)
 {
@@ -778,6 +880,8 @@ unsigned int pickup_irq(struct exception_frame *exfr, unsigned int *tipl,
 
 emulator_ic_write   interrupt_ic;
 
+//  Write to pure virtual IRQ stab
+//
 unsigned int        interrupt_ic(struct exception_frame *exfr, unsigned int irq)
 {
 	/* start IRQ in vm ... */
@@ -786,12 +890,16 @@ unsigned int        interrupt_ic(struct exception_frame *exfr, unsigned int irq)
 
 extern emulator_irq    interrupt_irq;
 
+//  Stab for pure virtual IRQ. Syntax fix only, no real use.
+//
 unsigned int    interrupt_irq(struct exception_frame *exfr, unsigned int irq,
 			   unsigned int ipl)
 {
 	return 0;
 }
 
+//  Debug printout of IC and virtual IC of current thread
+//
 void ic_print(struct thread *next)
 {
 	int i;

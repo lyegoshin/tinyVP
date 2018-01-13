@@ -32,6 +32,20 @@ unsigned int dsp_owner;
 unsigned int reschedule_flag;
 
 #include "uart.h"
+
+//  Context switch:
+//
+//      Save context if guest
+//      switch frame pointer (FP) to new thread block
+//      switch EntriHi.ASID for non-guest thread
+//      update Status
+//      Adjust stack pointer in to thread level (urgent for non-guest thread!)
+//      restore context if guest
+//      set new thread as "RUNNING"
+//
+//  Note: it can be done only from "WAIT" level or non-exception thread stack or
+//        guest execution level.
+//
 void switch_to_thread(struct exception_frame *exfr, unsigned int thread)
 {
 	register struct thread *v0 = get_thread_fp(thread);
@@ -165,6 +179,11 @@ void switch_to_thread(struct exception_frame *exfr, unsigned int thread)
 	return;
 }
 
+//  Request a context switch.
+//
+//      If non-exception stack - just switch, otherwise - request it after IRQ
+//      or exception is completed
+//
 int request_switch_to_thread(struct exception_frame *exfr, unsigned int thread)
 {
 	if (!in_exc_stack(exfr->cp0_status)) {
@@ -176,6 +195,10 @@ int request_switch_to_thread(struct exception_frame *exfr, unsigned int thread)
 	return 0;
 }
 
+//  Reschedule
+//
+//      Select a new thread and request switch to it
+//
 void reschedule(struct exception_frame *exfr)
 {
 	struct thread *next;
@@ -234,6 +257,8 @@ void reschedule(struct exception_frame *exfr)
 	}
 }
 
+//  Initiate a single thread structure
+//
 void init_thread(unsigned int thread, int traceflag)
 {
 	struct thread *next = get_thread_fp(thread);
@@ -295,6 +320,10 @@ void init_thread(unsigned int thread, int traceflag)
 	exfr->cp0_status        = CP0_STATUS_INIT;
 }
 
+//  Scheduler initialization
+//
+//      First, init a critical CP0 guest control registers
+//
 void init_scheduler()
 {
 	int thread;

@@ -21,11 +21,31 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+/*
+ *      CP0 EIC (Extended Interrupt Controller) support and emulation
+ *
+ *      Multiple IPLs are supported in guests
+ *      Root works in IPL0 (for now) to prevent interrupt delay for
+ *      more priority guest, it may cause a stray IRQ in some guests.
+ *
+ *      After IRQ injection into guest CP0 root starts GHFC tracking
+ *      to catch a moment then interrupt really happens in guest
+ *      (via change of Status.EXL bit).
+ *      It stops tracking after that (or injects a next IRQ).
+ *
+ *      Special handling for guest's CP0 COMPARE IRQ in accordance with Arch
+ */
+
 #include    "mips.h"
 #include    "irq.h"
 #include    "ic.h"
 #include    "thread.h"
 
+//  Cancel a current "inject IRQ" operation for guest and
+//   may be - inject and next one
+//
+//  If cancelled - stop GHFC tracking
+//
 void cancel_inject_IRQ(struct exception_frame *exfr)
 {
 	int irq;
@@ -46,6 +66,9 @@ void cancel_inject_IRQ(struct exception_frame *exfr)
 	current->injected_ipl = 0;
 }
 
+//  GHFC exception while IRQ was injected
+//  Maintain IRQ history and cancel a current "injected" IRQ
+//
 void exc_injected_handler(struct exception_frame *exfr)
 {
 	char str[128];
@@ -62,7 +85,14 @@ void exc_injected_handler(struct exception_frame *exfr)
 	cancel_inject_IRQ(exfr);
 }
 
-// insert IRQ
+//  insert IRQ to guest:
+//      Check IPL vs IRQ guest IPL
+//      inject it if guest is current and has no an injected IRQ
+//      or prepare it for injection later on or at reschedule
+//
+//      If guest is not 'polling' guest then set tracking GHFC events to catch
+//      that IRQ injection is completed via change of Status.ERL
+//
 void insert_IRQ(struct exception_frame *exfr, unsigned int thread, int irq, unsigned int ipl)
 {
 	unsigned int oldstatus;
@@ -121,7 +151,8 @@ void insert_IRQ(struct exception_frame *exfr, unsigned int thread, int irq, unsi
 	return;
 }
 
-// SW emulated IRQ to vm=vmid from time.c
+// SW emulated IRQ to thread from time.c
+//
 void execute_timer_IRQ(struct exception_frame *exfr, unsigned int thread)
 {
 	unsigned int oldipl;
@@ -149,7 +180,9 @@ return;
 	enforce_irq(exfr, thread, IC_TIMER_IRQ);
 }
 
-//  IC write hook - move to proper file?
+//  IC write hook to enable timer IRQ in IC  - move to proper file?
+//  If there is a timer IRQ and enabled - insert it
+//
 void insert_timer_IRQ(struct exception_frame *exfr, int irq)
 {
 	unsigned int gipl;

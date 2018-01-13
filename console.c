@@ -21,6 +21,15 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+/*
+ *      Console UART emulation for guest threads
+ *
+ *      Note: there is only support for guest threads, non-guest
+ *      threads can't receive input
+ *
+ *      Buffers are circular
+ */
+
 #include    "tinyVP.h"
 #include    "mips.h"
 #include    "uart.h"
@@ -41,6 +50,9 @@ unsigned char console_buffer[MAX_NUM_GUEST + 1][MAX_INPUT_BUFFER_SIZE];
 unsigned char console_buffer_start[MAX_NUM_GUEST + 1];
 unsigned char console_buffer_end[MAX_NUM_GUEST + 1];
 
+//  save an input console character to guest input buffer
+//  'console_rx_vmid' points to a currently assigned guest
+//
 void console_input_char(unsigned char value)
 {
 	short pos;
@@ -56,11 +68,15 @@ void console_input_char(unsigned char value)
 	console_buffer_end[console_rx_vmid] = pos;
 }
 
+//  Does some unconsumed char exist in guest input buffer?
+//
 inline unsigned char console_has_next_char(unsigned int vmid)
 {
 	return console_buffer_start[vmid] != console_buffer_end[vmid];
 }
 
+//  Get next char from guest input buffer
+//
 inline unsigned char console_next_char(unsigned int vmid)
 {
 	unsigned char c;
@@ -73,6 +89,8 @@ inline unsigned char console_next_char(unsigned int vmid)
 
 extern emulator console;
 
+//  Guest console UART register access emulator, called from TLB exception
+//
 unsigned int  console(struct exception_frame *exfr,
 		     struct cpte_nd const *cpte,
 		     unsigned long pagemask,
@@ -162,13 +180,24 @@ unsigned int  console(struct exception_frame *exfr,
 
 extern emulator_irq    console_irq;
 
+//  Console IRQ stab - there is no a direct translation of physical UART IRQ to
+//  guest virtual UART IRQ, so this is just for syntax
+//
 unsigned int    console_irq(struct exception_frame *exfr, unsigned int irq,
 			    unsigned int ipl)
 {
 	return 0;
 }
 
-/* character taken from console UART */
+//  Process character taken from console UART
+//
+//  CONSOLE_ESC char and subsequent number can switch input from one guest
+//  to another. Number indicates a new guest VM.
+//  Guest UART IRQ is scheduled after input.
+//
+//  If input is done for 'VM0' (actually - a tinyVP thread itself) a force
+//  reschedule is done
+//
 void    console_rx(struct exception_frame *exfr, unsigned int value)
 {
 	unsigned int vmid;
@@ -219,6 +248,11 @@ void    console_rx(struct exception_frame *exfr, unsigned int value)
 
 emulator_ic_write   console_ic;
 
+//  Write to IC bit for console UART is done by guest
+//
+//  Check for interrupt enable etc and start a process
+//  For TX IRQ - may need to insert IRQ (IFS can be set by guest!)
+//
 unsigned int        console_ic(struct exception_frame *exfr, unsigned int irq)
 {
 	/* start IRQ in VM ... */

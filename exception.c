@@ -21,6 +21,25 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+/*
+ *      Exceptions handling
+ *
+ *      Special care is done to support an accurate time model in guests.
+ *      There is a problem then guest manipulates CP0 COUNT/COMPARE
+ *      in some way which may cause CP0 COMPARE interrupt miss and COUNT
+ *      may overrun COMPARE. This may cause a total timing idea loss in guest.
+ *
+ *      To solve this issue the wall COUNT is 64bit and high half is considered
+ *      as 'generation'. The same is kept for any guest and if generation
+ *      doesn't match then a series of timer IRQs are generated in guests
+ *      to artificially push it's idea of current wall time to a real wall time.
+ *      The COUNT/COMPARE difference in 2**30 is considered as a critical point
+ *      to start 'chronical late' process. During this artificial values of
+ *      guest CP0 COUNT are supplied to guest.
+ *
+ *      This can cause some jitter sporadically but keeps guests running.
+ */
+
 #include    <asm/inst.h>
 #include    <asm/branch.h>
 
@@ -37,6 +56,10 @@ char panicbuf[128];
 
 void panic_thread(struct exception_frame *a0, char *message);
 
+//  Read thread GPR.
+//  If it is non-zero SRS then read it from SRS
+//  Othervise, take it from exception frame in memory
+//
 unsigned long gpr_read(struct exception_frame *exfr, unsigned int rt)
 {
 	unsigned int ie;
@@ -87,6 +110,10 @@ unsigned long gpr_read(struct exception_frame *exfr, unsigned int rt)
 	}
 }
 
+//  Write to thread GPR.
+//  If it is non-zero SRS then write to SRS
+//  Othervise, put it to exception frame in memory
+//
 void gpr_write(struct exception_frame *exfr, unsigned int rt, unsigned long val)
 {
 	unsigned int ie;
@@ -135,6 +162,8 @@ void gpr_write(struct exception_frame *exfr, unsigned int rt, unsigned long val)
 	}
 }
 
+//  Emulate a GPR load in accordance with instruction opcode and GPR number
+//
 int load_by_instruction(struct exception_frame *exfr, unsigned long value)
 {
 	unsigned int rt;
@@ -244,6 +273,10 @@ void panic_thread(struct exception_frame *exfr, char *message)
 	IRQ_nonexc_exit();
 }
 
+//  Process Coprocessor Unusable exception:
+//      For coprocessor 1 - maintain FPU registers access
+//      with lazy (delayed) save/restore logic
+//
 static void do_cu(struct exception_frame *exfr)
 {
 	if (get_cause__ce(exfr->cp0_cause) == 1) {
@@ -259,6 +292,10 @@ static void do_cu(struct exception_frame *exfr)
 	panic_thread(exfr, "CUx exception\n");
 }
 
+//  Process DSP exception:
+//      Maintain extended DSP registers access
+//      with lazy (delayed) save/restore logic
+//
 static void do_dsp(struct exception_frame *exfr)
 {
 	set_exfr_status__mx(exfr);
@@ -285,6 +322,8 @@ static int recalculate_late_timer(unsigned long long gcount)
 	return 0;
 }
 
+//  GPSI (Guest Privileged Sensitive Instruction) exception
+//
 void do_gpsi(struct exception_frame *exfr)
 {
 	unsigned int inst = exfr->cp0_badinst;
@@ -464,7 +503,16 @@ void do_gpsi(struct exception_frame *exfr)
 	panic_thread(exfr, "Unknown GPSI\n");
 }
 
-// unfortunately, we need to track GSFC to get EXL change tracked
+//  GPFC (Guest Privileged Field Change) exception
+//
+//  Unfortunately, we need to track GSFC to get Status.EXL change tracked
+//  and emulate all instructions
+//  to figure out that an injected IRQ is really injected = interrupt happens
+//
+//  Injected IRQ can be delayed due to interrupt mask, IPL or whatever
+//  but we need to track it to provide a next IRQ for guest right after
+//  first one is accepted
+//
 void do_gsfc(struct exception_frame *exfr)
 {
 	unsigned int inst = exfr->cp0_badinst;
@@ -512,6 +560,8 @@ void do_gsfc(struct exception_frame *exfr)
 
 extern char *longlong_to_timestring(char *buf, size_t len, unsigned long long n);
 
+//  Main thread exception function
+//
 void do_EXC(struct exception_frame *exfr)
 {
 	unsigned int cause = (exfr->cp0_cause & CP0_CAUSE_CODE) >> CP0_CAUSE_CODE_SHIFT;

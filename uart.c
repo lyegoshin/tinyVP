@@ -21,6 +21,13 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+/*
+ *      PIC32MZEF UART access functions
+ *
+ *      It can work in sync, with wait-until-finished or
+ *      work via RX/TX interrupts in background.
+ */
+
 #include    "mips.h"
 #include    "irq.h"
 #include    "uart.h"

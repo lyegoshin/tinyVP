@@ -21,6 +21,25 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+/*
+ *      tinyVP time keeper and timer IRQ service
+ *
+ *      Wall time is in 64bit nanosecs, and counter is 64bit too -
+ *      - the CP0 COUNT with 'generation' in high order bits.
+ *      Generation is used to do a smooth adjustment of 32bit guest COUNT
+ *      after COUNT rollover. 'lcount' is 64bit count value.
+ *
+ *      Time interval is set in 'count's. To have an accurate timer measurement
+ *      it is essential that wall time and CPU COUNT frequency can be multipliers.
+ *
+ *      Guest CP0 COUNT/COMPARE doesn't work properly because PIC32MZEF has no
+ *      a proper connect of guest COMPAREd signal line and IRQ never happens.
+ *      So, guest time should be kept in tinyVP.
+ *
+ *      'need_time_update' flag means that guest/thread does someting which
+ *      requires an accurate time/count and time must be updated to actual value
+ */
+
 #include    "tinyVP.h"
 #include    "mipsasm.h"
 #include    "mips.h"
@@ -46,7 +65,8 @@ static struct timer timerQ = {
     .next = &timerQ,
 };
 
-
+//  Get CP0 COUNT with a current 'generation'
+//
 static unsigned long long time_get_lcount(void)
 {
 	unsigned int count;
@@ -57,6 +77,11 @@ static unsigned long long time_get_lcount(void)
 	return time_extend_count(current_lcount,count);
 }
 
+//  Set CP0 COMPARE
+//
+//      If new COMPARE value is too close or behind CP0 COUNT -
+//      adjust COMPARE value to make timer IRQ _now_
+//
 static void time_set_timer(struct timer *timer)
 {
 	unsigned long long lcnt;
@@ -70,6 +95,8 @@ static void time_set_timer(struct timer *timer)
 	ehb();
 }
 
+//  Update wall time and count
+//
 void time_update_wall_time(void)
 {
 	unsigned int ie;
@@ -88,6 +115,10 @@ void time_update_wall_time(void)
 	im_down(ie);
 }
 
+//  Insert timer block into timer IRQ request queue
+//
+//      Sorted insert into queue
+//
 static void time_insert_timer(struct timer *timer)
 {
 	struct timer *tmr;
@@ -128,6 +159,8 @@ static void time_insert_timer(struct timer *timer)
 	tmr->prev = timer;
 }
 
+//  Timer IRQ event handler
+//
 static void handle_event(struct exception_frame *exfr, struct timer *timer)
 {
 	void (*func)(void);
@@ -151,6 +184,10 @@ static void handle_event(struct exception_frame *exfr, struct timer *timer)
 	}
 }
 
+//  Request a future IRQ after delay
+//
+//      Execute a call to function or it should be some standard action
+//
 void timer_request(struct timer *timer, unsigned long long delay,
 		   void (*func)(void))
 {
@@ -170,6 +207,8 @@ void timer_request(struct timer *timer, unsigned long long delay,
 	im_down(ie);
 }
 
+//  Request a guest IRQ at a specific 'count'
+//
 void timer_g_irq_reschedule(unsigned int timerno, unsigned long long clock)
 {
 	unsigned int ie;
@@ -188,6 +227,11 @@ void timer_g_irq_reschedule(unsigned int timerno, unsigned long long clock)
 
 extern struct timer tmp_timer;
 
+//  CP0 COMPARE IRQ processing
+//
+//      Currently, there is check that IRQ happens at least at requested time or
+//      later. If it happens BEFORE a first requested time then it is a bug.
+//
 int time_irq(struct exception_frame *exfr, unsigned int irq)
 {
 	struct timer *timer;

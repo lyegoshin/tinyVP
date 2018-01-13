@@ -21,6 +21,36 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+/*
+ *      TLB (page fault) exception processing - heart of memory mapping
+ *
+ *      Array cpt_base[] points to individual guests memory map tree.
+ *      Top level block of each tree has 8 segments by 512MB (2 pairs of 256MB).
+ *      If some detailization is needed to use a less size pages then
+ *      approproiate segment is replaced by referal intermediate node.
+ *      Each intermediate node keeps address/mask to match a hit, pagemask for
+ *      pages in underlying level block and right/left shifts to create
+ *      an offset in underlying level block from address. It also has a flag bit
+ *      which indicates an intermediate level block.
+ *
+ *      Leaf node has a pair of 2 PTEs with HW access control bits and two
+ *      pointers - to access bitmask of 16bytes pieces (it is used if we need
+ *      to give an access to some 16bytes * N, which are less than whole page),
+ *      and emulator function pointer which should be called to emulate device.
+ *
+ *      To facilitate the multiple devices on a single physical page a leaf node
+ *      can be replaced by some 'transient' node with pointer to subtree in
+ *      similar facion. This subtree leafs can define even less than 4K page
+ *      memory blocks and, of course, not used by HW TLB but SW access emulator
+ *      in this file. HW lookup is stopped at transient node. SW subtree has
+ *      a slightly different format of leaf because it doesn't have to have
+ *      MIPS RI/XI/G bits, but should have more low bits in address and pagemask.
+ *
+ *      Assembler TLB refill tryes to fill from main tree and if it fails it
+ *      executes a SW TLB handler which can handle a SW subtree as is as
+ *      an access emulation.
+ */
+
 #include    <asm/inst.h>
 #include    <asm/branch.h>
 
@@ -39,6 +69,13 @@ struct cpte_cache sw_cpte_cache[16] = {
 
 static char str[128];
 
+//  Get PhysAddr from CPTE on base of fault badvaddr, pagemask and
+//  minimal pagemask for SW access emulation
+//
+//  It actually returns PA, EntryLo and full offset in EntryLo pair
+//  Two flavors of EntryLo are used - HW supported and more precise for
+//  SW emulation
+//
 unsigned long get_pa_from_cpte(struct cpte_dl const *cpte_double_leaf, unsigned long pagemask,
 			       unsigned long badvaddr, unsigned long *fulloffset,
 			       unsigned long *ELo, unsigned long pagemask_min)
@@ -69,6 +106,8 @@ unsigned long get_pa_from_cpte(struct cpte_dl const *cpte_double_leaf, unsigned 
 	return pa;
 }
 
+//  Temporary map an address via some page in KSEG3 for SW access
+//
 unsigned long map_tmp_address(unsigned int *ie, unsigned long address, unsigned long ELo)
 {
 	unsigned int im;
@@ -91,6 +130,8 @@ unsigned long map_tmp_address(unsigned int *ie, unsigned long address, unsigned 
 	return MAP_TMP_ADDRESS | (address & (PAGE_TMP_SIZE - 1));
 }
 
+//  Unmap a temporary page
+//
 void unmap_tmp_address(unsigned int *ie, unsigned long address)
 {
 	unsigned int gid = current->gid;
@@ -107,6 +148,8 @@ void unmap_tmp_address(unsigned int *ie, unsigned long address)
 	im_down(*ie);
 }
 
+//  Decode an exception instruction and read GPR for stores
+//
 int     decode_exception_instruction(struct exception_frame *exfr,
 				     unsigned long *value)
 {
@@ -143,6 +186,8 @@ int     decode_exception_instruction(struct exception_frame *exfr,
 	return  ret/8;
 }
 
+//  Emulate RW
+//
 int     emulate_rw(struct exception_frame *exfr, unsigned long address, unsigned long ELo)
 {
 	unsigned int rt;
@@ -197,6 +242,15 @@ finish:
 	return 1;
 }
 
+//  Main TLB (page fault) exception handler
+//
+//  First, it tries to find CPTE in small cache by badvaddr.
+//  Rolls out PTE tree and searches an appropriate leaf CPTE for badvaddr.
+//  If search passes through transient node to SW subtree it uses an another
+//  small cache of SW subtree CPTE before a second search.
+//
+//  At success it emulates RW or call a device emulator
+//
 void    do_TLB(struct exception_frame *exfr, unsigned int cause)
 {
 	struct cpte_nd const *cpte;
@@ -319,6 +373,8 @@ bad_area:   ;
 	panic_thread(exfr, "TLB exception - bad address\n");
 }
 
+//  Dump a current CP0 TLB array for debug purpose
+//
 void dump_tlb()
 {
 	unsigned long l0, l1, hi, ind, ind0, pm, gctl1;
