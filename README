@@ -125,7 +125,9 @@ system time. Some input symbols into root are interpreted as some commands.
 	 * SRecord tools (srec_cat, etc.; in package "srecord" on Linux)
 	 * "MIPS Linux "MTI" variant toolchain; available from:
 
-	   https://community.imgtec.com/developers/mips/tools/codescape-mips-sdk/download-codescape-mips-sdk-essentials/
+	  https://www.mips.com/develop/tools/compilers/
+	or
+	  http://codescape.mips.com/components/toolchain/2017.10-05/downloads.html
 
     1.  Build guests ELF files
 
